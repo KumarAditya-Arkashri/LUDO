@@ -54,7 +54,10 @@ function LoginPage() {
       toast.success("Welcome back");
       navigate({ to: "/dashboard" });
     } catch (error: any) {
-      toast.error(error.response?.data?.message || "Failed to log in");
+      console.error("Login error:", error);
+      const errorMessage = error.response?.data?.message || error.message || "Unknown error";
+      const targetUrl = error.config?.baseURL || "unknown url";
+      toast.error(`Error: ${errorMessage} (Target: ${targetUrl})`);
     } finally {
       setIsPending(false);
     }

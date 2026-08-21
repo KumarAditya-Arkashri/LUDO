@@ -70,7 +70,10 @@ function RegisterPage() {
       toast.success("Account created");
       navigate({ to: "/dashboard" });
     } catch (error: any) {
-      toast.error(error.response?.data?.message || "Failed to create account");
+      console.error("Registration error:", error);
+      const errorMessage = error.response?.data?.message || error.message || "Unknown error";
+      const targetUrl = error.config?.baseURL || "unknown url";
+      toast.error(`Error: ${errorMessage} (Target: ${targetUrl})`);
     } finally {
       setIsPending(false);
     }
