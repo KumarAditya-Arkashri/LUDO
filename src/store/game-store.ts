@@ -161,48 +161,49 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   connectLobby: () => {
     const socket = connectMatchmakingSocket();
+    
     socket.off(SOCKET_EVENTS.battlesSync);
-    socket.on(SOCKET_EVENTS.battlesSync, (battles: any[]) => set({ openBattles: battles }));
+    socket.on(SOCKET_EVENTS.battlesSync, (battles: any[]) => {
+      set({ openBattles: battles });
+    });
+
+    socket.off(SOCKET_EVENTS.battleAdded);
+    socket.on(SOCKET_EVENTS.battleAdded, (battle: any) => {
+      set((state) => ({
+        openBattles: [...state.openBattles, battle],
+      }));
+    });
+
+    socket.off(SOCKET_EVENTS.battleRemoved);
+    socket.on(SOCKET_EVENTS.battleRemoved, ({ battleId }: { battleId: string }) => {
+      set((state) => ({
+        openBattles: state.openBattles.filter((b) => b.id !== battleId),
+      }));
+    });
+
+    socket.off(SOCKET_EVENTS.battleUpdated);
+    socket.on(SOCKET_EVENTS.battleUpdated, (battle: any) => {
+      set((state) => ({
+        openBattles: state.openBattles.map((b) => (b.id === battle.id ? battle : b)),
+      }));
+    });
+
     socket.off(SOCKET_EVENTS.matchFound);
     socket.on(SOCKET_EVENTS.matchFound, (payload: { matchId: string; entryFee: number }) => {
       get().joinMatch(payload.matchId);
     });
   },
 
-    connectLobby: () => {
-      const socket = connectMatchmakingSocket();
-      
-      socket.off(SOCKET_EVENTS.battlesSync);
-      socket.on(SOCKET_EVENTS.battlesSync, (battles: any[]) => {
-        set({ openBattles: battles });
-      });
-
-      socket.off(SOCKET_EVENTS.battleAdded);
-      socket.on(SOCKET_EVENTS.battleAdded, (battle: any) => {
-        set((state) => ({
-          openBattles: [...state.openBattles, battle],
-        }));
-      });
-
-      socket.off(SOCKET_EVENTS.battleRemoved);
-      socket.on(SOCKET_EVENTS.battleRemoved, ({ battleId }: { battleId: string }) => {
-        set((state) => ({
-          openBattles: state.openBattles.filter((b) => b.id !== battleId),
-        }));
-      });
-
-      socket.off(SOCKET_EVENTS.battleUpdated);
-      socket.on(SOCKET_EVENTS.battleUpdated, (battle: any) => {
-        set((state) => ({
-          openBattles: state.openBattles.map((b) => (b.id === battle.id ? battle : b)),
-        }));
-      });
-
-      socket.off(SOCKET_EVENTS.matchFound);
-      socket.on(SOCKET_EVENTS.matchFound, (payload: { matchId: string; entryFee: number }) => {
-        get().joinMatch(payload.matchId);
-      });
-    },
+  createBattle: (entryFee) => new Promise((resolve, reject) => {
+    const socket = getMatchmakingSocket();
+    const onError = (payload: any) => reject(new Error(payload.message));
+    socket.once(SOCKET_EVENTS.battleError, onError);
+    socket.emit(SOCKET_EVENTS.createBattle, { entryFee });
+    setTimeout(() => {
+      socket.off(SOCKET_EVENTS.battleError, onError);
+      resolve(true);
+    }, 500);
+  }),
 
   cancelBattle: (battleId) => new Promise((resolve, reject) => {
     const socket = getMatchmakingSocket();
