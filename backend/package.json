@@ -98,7 +98,7 @@
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
       "^.+\\.(t|j)s$": [
-        "/Users/aditya/Desktop/ludo-arena-pro-main/backend/node_modules/ts-jest/dist/index.js",
+        "ts-jest",
         {
           "tsconfig": "<rootDir>/tsconfig.json",
           "diagnostics": false,
