@@ -13,14 +13,9 @@ export class RedisIoAdapter extends IoAdapter {
     super(app);
     const configService = app.get(ConfigService);
 
-    const host = configService.get<string>('REDIS_HOST', 'localhost');
-    const port = configService.get<number>('REDIS_PORT', 6379);
-    const password = configService.get<string>('REDIS_PASSWORD') || undefined;
+    const redisUrl = configService.get<string>('REDIS_URL');
 
     const redisOptions: RedisOptions = {
-      host,
-      port,
-      ...(password ? { password } : {}),
       // Retry strategy: exponential back-off, give up after 10 retries
       retryStrategy: (times: number) => {
         if (times > 10) {
@@ -37,7 +32,7 @@ export class RedisIoAdapter extends IoAdapter {
       },
     };
 
-    const pubClient = new Redis(redisOptions);
+    const pubClient = redisUrl ? new Redis(redisUrl, redisOptions) : new Redis(redisOptions);
     // sub client must be a separate connection from pub client
     const subClient = pubClient.duplicate();
 
@@ -56,7 +51,7 @@ export class RedisIoAdapter extends IoAdapter {
 
     this.adapterConstructor = createAdapter(pubClient, subClient);
     this.logger.log(
-      `RedisIoAdapter initialised — ${host}:${port} (multi-node scaling enabled)`,
+      `RedisIoAdapter initialised (multi-node scaling enabled)`,
     );
   }
 
