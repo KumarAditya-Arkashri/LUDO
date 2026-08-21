@@ -38,7 +38,8 @@ import { PracticeMatchModule } from './practice-match/practice-match.module';
       inject: [ConfigService],
       useFactory: async (configService: ConfigService) => ({
         connection: new (require('ioredis'))(
-          configService.get('REDIS_URL', 'redis://localhost:6379')
+          configService.get('REDIS_URL', 'redis://localhost:6379'),
+          { maxRetriesPerRequest: null }
         ),
       }),
     }),
