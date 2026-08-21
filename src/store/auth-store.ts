@@ -35,13 +35,17 @@ export const useAuthStore = create<AuthState>()(
           refreshToken,
         }),
 
-      logout: () =>
+      logout: () => {
+        import("@/lib/socket").then(({ disconnectAllSockets }) => {
+          disconnectAllSockets();
+        });
         set({
           user: null,
           token: null,
           refreshToken: null,
           isAuthenticated: false,
-        }),
+        });
+      },
 
       updateProfile: (patch) =>
         set((state) => ({
