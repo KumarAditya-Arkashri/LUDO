@@ -37,10 +37,9 @@ import { PracticeMatchModule } from './practice-match/practice-match.module';
     BullModule.forRootAsync({
       inject: [ConfigService],
       useFactory: async (configService: ConfigService) => ({
-        connection: {
-          host: configService.get('REDIS_HOST', 'localhost'),
-          port: configService.get('REDIS_PORT', 6379),
-        },
+        connection: new (require('ioredis'))(
+          configService.get('REDIS_URL', 'redis://localhost:6379')
+        ),
       }),
     }),
     PrismaModule,
