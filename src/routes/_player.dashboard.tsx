@@ -199,7 +199,7 @@ function DashboardPage() {
                   <p className="font-bold text-lg">{inr(b.entryFee)}</p>
                   <p className="text-xs text-muted-foreground">Win: {inr(Math.round(b.entryFee * 2 * 0.95))}</p>
                 </div>
-                {b.status === "WAITING" && (
+                {b.status === "OPEN" && (
                   <Button size="sm" variant="destructive" onClick={() => handleCancel(b.id)}>
                     Cancel
                   </Button>
@@ -225,12 +225,12 @@ function DashboardPage() {
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="font-semibold text-sm">{b.creatorName}</span>
-                    {b.status === "WAITING" && <StatusPill status="open" />}
+                    {b.status === "OPEN" && <StatusPill status="open" />}
                     {b.status === "ACCEPTED" && <StatusPill status="in progress" />}
                   </div>
                   <p className="font-bold text-lg">{inr(b.entryFee)}</p>
                 </div>
-                {b.status === "WAITING" && (
+                {b.status === "OPEN" && (
                   <Button size="sm" onClick={() => handleAccept(b.id)}>
                     Play
                   </Button>
