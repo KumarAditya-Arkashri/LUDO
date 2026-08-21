@@ -70,7 +70,7 @@ export class RedisIoAdapter extends IoAdapter {
       );
     }
 
-    const finalOptions: ServerOptions = {
+    const finalOptions: any = {
       ...options,
       cors: {
         origin: allowedOrigins.length > 0 ? allowedOrigins : true,
