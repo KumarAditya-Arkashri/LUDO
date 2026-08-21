@@ -169,9 +169,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     socket.off(SOCKET_EVENTS.battleAdded);
     socket.on(SOCKET_EVENTS.battleAdded, (battle: any) => {
-      set((state) => ({
-        openBattles: [...state.openBattles, battle],
-      }));
+      set((state) => {
+        if (state.openBattles.some((b) => b.id === battle.id)) return state;
+        return { openBattles: [battle, ...state.openBattles] };
+      });
     });
 
     socket.off(SOCKET_EVENTS.battleRemoved);

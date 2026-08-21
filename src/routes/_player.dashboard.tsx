@@ -9,6 +9,7 @@ import { useWalletStore } from "@/store/wallet-store";
 import { useAuthStore } from "@/store/auth-store";
 import { useGameStore } from "@/store/game-store";
 import { useEffect, useState } from "react";
+import { getMatchmakingSocket, SOCKET_EVENTS } from "@/lib/socket";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 export const Route = createFileRoute("/_player/dashboard")({
@@ -38,7 +39,19 @@ function DashboardPage() {
 
   useEffect(() => {
     connectLobby();
-  }, [connectLobby]);
+
+    // The game store handles joining the match data stream, but we need to handle the UI redirect.
+    const socket = getMatchmakingSocket();
+    
+    const onMatchFound = () => {
+      navigate({ to: "/game" });
+    };
+    
+    socket.on(SOCKET_EVENTS.matchFound, onMatchFound);
+    return () => {
+      socket.off(SOCKET_EVENTS.matchFound, onMatchFound);
+    };
+  }, [connectLobby, navigate]);
 
   const handleCreate = async () => {
     try {
