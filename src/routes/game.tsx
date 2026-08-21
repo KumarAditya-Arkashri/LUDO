@@ -68,6 +68,17 @@ function GameScreen() {
   const opponent = players.find((p) => p.color !== myColor);
   const myTurn = turnColor === myColor;
 
+  if (players.length === 0 || phase === "waiting") {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center p-4 arena-bg">
+        <GlassPanel className="p-8 text-center max-w-sm w-full space-y-4">
+          <h2 className="text-xl font-bold animate-pulse">Connecting to table...</h2>
+          <p className="text-sm text-muted-foreground">Waiting for game state to sync.</p>
+        </GlassPanel>
+      </div>
+    );
+  }
+
   if (!me || !opponent) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center p-4">

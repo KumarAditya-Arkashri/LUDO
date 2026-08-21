@@ -75,11 +75,11 @@ function mapBackendStateToFrontend(
         .map((t: any) => ({
           id: t.tokenId,
           color,
-          position: t.stepsMoved >= 0 ? t.stepsMoved : -1,
+          position: t.progress >= 0 ? t.progress : -1,
           state:
-            t.state === "LOCKED" || t.state === "CAPTURED"
+            t.state === "HOME"
               ? "yard"
-              : t.state === "HOME" || t.state === "FINISHED"
+              : t.state === "FINISHED"
                 ? "home"
                 : "track",
         }));
