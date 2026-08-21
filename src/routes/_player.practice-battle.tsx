@@ -53,18 +53,32 @@ function PracticeBattlePage() {
       toast.success("Practice battle created. Waiting for Player 2.");
     };
     const joined = (battle: PracticeBattle) => {
-      setSelected((current) => (current?.id === battle.id ? battle : current));
+      setSelected((current) => {
+        if (!current || current.id === battle.id) return battle;
+        return current;
+      });
       setBattles((current) => current.map((item) => (item.id === battle.id ? battle : item)));
       toast.success("Player 2 joined the table.");
     };
     const codeReady = (payload: { battleId: string; roomCode: string; expiresAt: number }) => {
       setRoomCode(payload.roomCode);
       setCodeExpiresAt(payload.expiresAt);
+      setBusy(false);
+      setBattles((currentBattles) => {
+        const battle = currentBattles.find(b => b.id === payload.battleId);
+        if (battle) setSelected({ ...battle, status: "CODE_PENDING" });
+        return currentBattles;
+      });
       toast.success("Room code generated. Share it with Player 2.");
     };
     const codeRequired = (payload: { battleId: string; expiresAt: number }) => {
-      setSelected((current) => (current?.id === payload.battleId ? current : current));
       setCodeExpiresAt(payload.expiresAt);
+      setBusy(false);
+      setBattles((currentBattles) => {
+        const battle = currentBattles.find(b => b.id === payload.battleId);
+        if (battle) setSelected({ ...battle, status: "CODE_PENDING" });
+        return currentBattles;
+      });
       toast.message("Player 1 started the battle. Enter the room code.");
     };
     const ready = (payload: { matchId: string }) => {
