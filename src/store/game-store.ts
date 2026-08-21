@@ -145,7 +145,7 @@ function mapBackendStateToFrontend(
     myColor,
     isPractice,
     ...(Number.isFinite(parsedEntryFee) && parsedEntryFee > 0 && {
-      entryFee: parsedEntryFee,
+      entryFee: parsedEntryFee as EntryFee,
       prizePool: Math.round(parsedEntryFee * 2 * 0.95),
     }),
     log,
