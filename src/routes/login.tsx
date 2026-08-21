@@ -43,7 +43,12 @@ function LoginPage() {
 
     setIsPending(true);
     try {
+      const slowWarningTimeout = setTimeout(() => {
+        toast.info("Backend is waking up (Render free tier), please wait...", { duration: 6000 });
+      }, 4000);
+
       const response = await api.post("/auth/login", { mobile, password });
+      clearTimeout(slowWarningTimeout);
       const { user, accessToken, refreshToken } = response.data?.data || response.data;
       setAuth(user, accessToken, refreshToken);
       toast.success("Welcome back");

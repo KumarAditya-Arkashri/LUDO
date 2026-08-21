@@ -39,8 +39,8 @@ function RegisterPage() {
       toast.error("Enter your full name");
       return;
     }
-    if (!/^\d{10}$/.test(form.mobile)) {
-      toast.error("Enter a valid 10-digit mobile number");
+    if (!/^[6-9]\d{9}$/.test(form.mobile)) {
+      toast.error("Enter a valid 10-digit Indian mobile number");
       return;
     }
     if (form.password.length < 6) {
@@ -59,7 +59,12 @@ function RegisterPage() {
         payload.referralCode = form.referral.trim();
       }
       
+      const slowWarningTimeout = setTimeout(() => {
+        toast.info("Backend is waking up (Render free tier), please wait...", { duration: 6000 });
+      }, 4000);
+
       const response = await api.post("/auth/register", payload);
+      clearTimeout(slowWarningTimeout);
       const { user, accessToken, refreshToken } = response.data?.data || response.data;
       setAuth(user, accessToken, refreshToken);
       toast.success("Account created");
