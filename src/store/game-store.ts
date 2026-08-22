@@ -30,13 +30,10 @@ const initialState: GameState = {
 
 interface GameStore extends GameState {
   myColor: PlayerColor;
-  openBattles: any[];
-  connectLobby: () => void;
-  createBattle: (entryFee: number) => Promise<boolean>;
-  cancelBattle: (battleId: string) => Promise<boolean>;
-  acceptBattle: (battleId: string) => Promise<boolean>;
-  rejectBattle: (battleId: string) => Promise<boolean>;
-  startBattle: (battleId: string) => Promise<boolean>;
+  waitingRoomCode: string | null;
+  createPrivateBattle: (entryFee: number) => Promise<string>;
+  cancelPrivateBattle: (roomCode: string) => Promise<boolean>;
+  joinPrivateBattle: (roomCode: string) => Promise<boolean>;
   joinQueue: (entryFee: EntryFee) => Promise<boolean>;
   leaveQueue: (entryFee: EntryFee) => void;
   joinMatch: (matchId: string) => void;
@@ -162,137 +159,74 @@ let globalMatchFoundListener: ((payload: { matchId: string; entryFee: number }) 
 export const useGameStore = create<GameStore>((set, get) => ({
   ...initialState,
   myColor: "red",
-  openBattles: [],
+  waitingRoomCode: null,
 
-  connectLobby: () => {
-    if (isLobbyConnected) return;
-    isLobbyConnected = true;
-
+  createPrivateBattle: (entryFee) => new Promise((resolve, reject) => {
     const socket = connectMatchmakingSocket();
-    
-    socket.off(SOCKET_EVENTS.battlesSync);
-    socket.on(SOCKET_EVENTS.battlesSync, (battles: any[]) => {
-      set({ openBattles: battles });
-    });
+    const onError = (payload: any) => {
+      socket.off(SOCKET_EVENTS.privateBattleCreated, onCreated);
+      reject(new Error(payload.message));
+    };
+    const onCreated = (payload: any) => {
+      socket.off(SOCKET_EVENTS.battleError, onError);
+      socket.off(SOCKET_EVENTS.privateBattleCreated, onCreated);
+      set({ waitingRoomCode: payload.roomCode, entryFee: entryFee as EntryFee, prizePool: Math.round(entryFee * 2 * 0.95), isPractice: false });
+      resolve(payload.roomCode);
+    };
 
-    socket.off(SOCKET_EVENTS.battleAdded);
-    socket.on(SOCKET_EVENTS.battleAdded, (battle: any) => {
-      set((state) => {
-        if (state.openBattles.some((b) => b.id === battle.id)) return state;
-        return { openBattles: [battle, ...state.openBattles] };
-      });
-    });
-
-    socket.off(SOCKET_EVENTS.battleRemoved);
-    socket.on(SOCKET_EVENTS.battleRemoved, ({ battleId }: { battleId: string }) => {
-      set((state) => ({
-        openBattles: state.openBattles.filter((b) => b.id !== battleId),
-      }));
-    });
-
-    socket.off(SOCKET_EVENTS.battleUpdated);
-    socket.on(SOCKET_EVENTS.battleUpdated, (battle: any) => {
-      set((state) => ({
-        openBattles: state.openBattles.map((b) => (b.id === battle.id ? battle : b)),
-      }));
-    });
-
-    if (globalMatchFoundListener) {
-      socket.off(SOCKET_EVENTS.matchFound, globalMatchFoundListener);
-    }
+    if (globalMatchFoundListener) socket.off(SOCKET_EVENTS.matchFound, globalMatchFoundListener);
     globalMatchFoundListener = (payload: { matchId: string; entryFee: number }) => {
       get().joinMatch(payload.matchId);
     };
     socket.on(SOCKET_EVENTS.matchFound, globalMatchFoundListener);
-  },
 
-  createBattle: (entryFee) => new Promise((resolve, reject) => {
-    const socket = getMatchmakingSocket();
-    const onError = (payload: any) => {
-      socket.off(SOCKET_EVENTS.battleAdded, onAdded);
-      reject(new Error(payload.message));
-    };
-    const onAdded = (battle: any) => {
-      socket.off(SOCKET_EVENTS.battleError, onError);
-      socket.off(SOCKET_EVENTS.battleAdded, onAdded);
-      resolve(true);
-    };
     socket.once(SOCKET_EVENTS.battleError, onError);
-    socket.on(SOCKET_EVENTS.battleAdded, onAdded);
-    socket.emit(SOCKET_EVENTS.createBattle, { entryFee });
+    socket.on(SOCKET_EVENTS.privateBattleCreated, onCreated);
+    socket.emit(SOCKET_EVENTS.createPrivateBattle, { entryFee });
   }),
 
-  cancelBattle: (battleId) => new Promise((resolve, reject) => {
-    const socket = getMatchmakingSocket();
+  cancelPrivateBattle: (roomCode) => new Promise((resolve, reject) => {
+    const socket = connectMatchmakingSocket();
     const onError = (payload: any) => {
-      socket.off(SOCKET_EVENTS.battleRemoved, onRemoved);
+      socket.off(SOCKET_EVENTS.privateBattleCancelled, onCancelled);
       reject(new Error(payload.message));
     };
-    const onRemoved = (payload: any) => {
-      if (payload.battleId === battleId) {
+    const onCancelled = (payload: any) => {
+      if (payload.roomCode === roomCode) {
         socket.off(SOCKET_EVENTS.battleError, onError);
-        socket.off(SOCKET_EVENTS.battleRemoved, onRemoved);
+        socket.off(SOCKET_EVENTS.privateBattleCancelled, onCancelled);
+        set({ waitingRoomCode: null });
         resolve(true);
       }
     };
     socket.once(SOCKET_EVENTS.battleError, onError);
-    socket.on(SOCKET_EVENTS.battleRemoved, onRemoved);
-    socket.emit(SOCKET_EVENTS.cancelBattle, { battleId });
+    socket.on(SOCKET_EVENTS.privateBattleCancelled, onCancelled);
+    socket.emit(SOCKET_EVENTS.cancelPrivateBattle, { roomCode });
   }),
 
-  acceptBattle: (battleId) => new Promise((resolve, reject) => {
-    const socket = getMatchmakingSocket();
+  joinPrivateBattle: (roomCode) => new Promise((resolve, reject) => {
+    const socket = connectMatchmakingSocket();
     const onError = (payload: any) => {
-      socket.off(SOCKET_EVENTS.battleUpdated, onUpdated);
+      socket.off(SOCKET_EVENTS.privateBattleJoined, onJoined);
       reject(new Error(payload.message));
     };
-    const onUpdated = (battle: any) => {
-      if (battle.id === battleId && battle.status === 'ACCEPTED') {
+    const onJoined = (payload: any) => {
+      if (payload.roomCode === roomCode) {
         socket.off(SOCKET_EVENTS.battleError, onError);
-        socket.off(SOCKET_EVENTS.battleUpdated, onUpdated);
+        socket.off(SOCKET_EVENTS.privateBattleJoined, onJoined);
         resolve(true);
       }
     };
-    socket.once(SOCKET_EVENTS.battleError, onError);
-    socket.on(SOCKET_EVENTS.battleUpdated, onUpdated);
-    socket.emit(SOCKET_EVENTS.acceptBattle, { battleId });
-  }),
 
-  rejectBattle: (battleId) => new Promise((resolve, reject) => {
-    const socket = getMatchmakingSocket();
-    const onError = (payload: any) => {
-      socket.off(SOCKET_EVENTS.battleUpdated, onUpdated);
-      reject(new Error(payload.message));
+    if (globalMatchFoundListener) socket.off(SOCKET_EVENTS.matchFound, globalMatchFoundListener);
+    globalMatchFoundListener = (payload: { matchId: string; entryFee: number }) => {
+      get().joinMatch(payload.matchId);
     };
-    const onUpdated = (battle: any) => {
-      if (battle.id === battleId && battle.status === 'OPEN') {
-        socket.off(SOCKET_EVENTS.battleError, onError);
-        socket.off(SOCKET_EVENTS.battleUpdated, onUpdated);
-        resolve(true);
-      }
-    };
-    socket.once(SOCKET_EVENTS.battleError, onError);
-    socket.on(SOCKET_EVENTS.battleUpdated, onUpdated);
-    socket.emit(SOCKET_EVENTS.rejectBattle, { battleId });
-  }),
+    socket.on(SOCKET_EVENTS.matchFound, globalMatchFoundListener);
 
-  startBattle: (battleId) => new Promise((resolve, reject) => {
-    const socket = getMatchmakingSocket();
-    const onError = (payload: any) => {
-      if (globalMatchFoundListener) socket.off(SOCKET_EVENTS.matchFound, globalMatchFoundListener);
-      reject(new Error(payload.message));
-    };
-    // MATCH_FOUND indicates the backend successfully created the game
-    const onMatch = (payload: any) => {
-      socket.off(SOCKET_EVENTS.battleError, onError);
-      socket.off(SOCKET_EVENTS.matchFound, onMatch);
-      // Let the main matchFound handler join the match
-      
-      resolve(true);
-    };
     socket.once(SOCKET_EVENTS.battleError, onError);
-    socket.on(SOCKET_EVENTS.matchFound, onMatch);
-    socket.emit(SOCKET_EVENTS.startBattle, { battleId });
+    socket.on(SOCKET_EVENTS.privateBattleJoined, onJoined);
+    socket.emit(SOCKET_EVENTS.joinPrivateBattle, { roomCode });
   }),
 
   joinQueue: (entryFee) => new Promise((resolve, reject) => {
@@ -382,7 +316,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   reset: () => {
     localStorage.removeItem('activeMatchId');
     disconnectAllSockets();
-    set({ ...initialState, myColor: "red", openBattles: [] });
+    set({ ...initialState, myColor: "red", waitingRoomCode: null });
   },
 }));
 if (typeof window !== 'undefined') { (window as any).__gameStore = useGameStore; }

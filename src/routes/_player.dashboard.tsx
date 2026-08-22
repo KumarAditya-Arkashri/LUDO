@@ -33,14 +33,15 @@ function DashboardPage() {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
   const wallets = useWalletStore((s) => s.wallets);
-  const { openBattles, connectLobby, createBattle, acceptBattle, cancelBattle, rejectBattle, startBattle } = useGameStore();
+  const { waitingRoomCode, createPrivateBattle, cancelPrivateBattle, joinPrivateBattle } = useGameStore();
 
   const [createFee, setCreateFee] = useState(100);
   const [isCreating, setIsCreating] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [joinCode, setJoinCode] = useState("");
+  const [isJoining, setIsJoining] = useState(false);
 
   useEffect(() => {
-    connectLobby();
 
     // The game store handles joining the match data stream, but we need to handle the UI redirect.
     const socket = getMatchmakingSocket();
@@ -58,59 +59,44 @@ function DashboardPage() {
   const handleCreate = async () => {
     try {
       setIsCreating(true);
-      await createBattle(createFee);
+      await createPrivateBattle(createFee);
       useWalletStore.getState().fetchWallet();
-      toast.success(`Battle created for ${inr(createFee)}!`);
+      toast.success(`Private room created for ${inr(createFee)}!`);
       setCreateDialogOpen(false);
     } catch (err: any) {
-      toast.error(err.message || "Failed to create battle");
+      toast.error(err.message || "Failed to create private room");
     } finally {
       setIsCreating(false);
     }
   };
 
-  const handleAccept = async (battleId: string) => {
+  const handleCancel = async () => {
+    if (!waitingRoomCode) return;
     try {
-      await acceptBattle(battleId);
+      await cancelPrivateBattle(waitingRoomCode);
       useWalletStore.getState().fetchWallet();
-      toast.success("Battle requested!");
+      toast.success("Room cancelled and fee refunded");
     } catch (err: any) {
-      toast.error(err.message || "Failed to request battle");
+      toast.error(err.message || "Failed to cancel room");
     }
   };
 
-  const handleStart = async (battleId: string) => {
-    try {
-      await startBattle(battleId);
-      toast.success("Battle starting...");
-      // Game store matchFound listener will redirect to match room automatically
-    } catch (err: any) {
-      toast.error(err.message || "Failed to start battle");
+  const handleJoin = async () => {
+    if (!joinCode || joinCode.length !== 6) {
+      toast.error("Please enter a valid 6-character room code");
+      return;
     }
-  };
-  
-  const handleCancel = async (battleId: string) => {
     try {
-      await cancelBattle(battleId);
+      setIsJoining(true);
+      await joinPrivateBattle(joinCode);
       useWalletStore.getState().fetchWallet();
-      toast.success("Battle cancelled");
+      toast.success("Joined room successfully!");
     } catch (err: any) {
-      toast.error(err.message || "Failed to cancel battle");
+      toast.error(err.message || "Failed to join room");
+    } finally {
+      setIsJoining(false);
     }
   };
-
-  const handleReject = async (battleId: string) => {
-    try {
-      await rejectBattle(battleId);
-      useWalletStore.getState().fetchWallet();
-      toast.success("Request rejected");
-    } catch (err: any) {
-      toast.error(err.message || "Failed to reject request");
-    }
-  };
-
-  const myBattles = openBattles.filter(b => b.creatorId === user?.id);
-  const otherBattles = openBattles.filter(b => b.creatorId !== user?.id);
 
   return (
     <div className="flex flex-col min-h-full">
@@ -182,91 +168,59 @@ function DashboardPage() {
         </div>
       </div>
 
-      {/* Live Battles */}
-      <div className="px-4 pb-6 mt-4">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-            <Swords className="text-primary size-5" />
-            Open Battles
-          </h2>
+      {/* Active Waiting Room State */}
+      {waitingRoomCode ? (
+        <div className="px-4 pb-6 mt-4">
+          <div className="bg-white border-2 border-primary/20 rounded-xl p-6 shadow-sm text-center">
+            <h3 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-2">Your Private Room</h3>
+            <p className="text-xs text-gray-400 mb-4">Share this code with your opponent. The match will start automatically when they join.</p>
+            <div className="bg-gray-100 rounded-lg p-4 mb-4">
+              <span className="text-4xl font-black tracking-[0.2em] text-gray-800">{waitingRoomCode}</span>
+            </div>
+            <div className="flex gap-3 justify-center">
+              <Button 
+                variant="outline" 
+                className="font-bold border-gray-300 text-gray-600"
+                onClick={() => {
+                  navigator.clipboard.writeText(waitingRoomCode);
+                  toast.success("Room code copied to clipboard!");
+                }}
+              >
+                Copy Code
+              </Button>
+              <Button variant="destructive" className="font-bold" onClick={handleCancel}>
+                Cancel Room
+              </Button>
+            </div>
+          </div>
         </div>
-
-        {myBattles.length > 0 && (
-          <div className="mb-6">
-            <h3 className="mb-3 text-[11px] font-bold text-gray-500 uppercase tracking-widest">My Battles</h3>
-            <div className="space-y-3">
-              {myBattles.map(b => (
-                <div key={b.id} className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm flex items-center justify-between">
-                  <div>
-                    <p className="font-black text-xl text-gray-800">{inr(b.entryFee)}</p>
-                    <p className="text-xs text-gray-500 font-medium">Win: <span className="text-success font-bold">{inr(Math.round(b.entryFee * 2 * 0.95))}</span></p>
-                  </div>
-                  {b.status === "OPEN" && (
-                    <Button size="sm" variant="destructive" className="rounded-lg font-bold px-4" onClick={() => handleCancel(b.id)}>
-                      Cancel
-                    </Button>
-                  )}
-                  {b.status === "ACCEPTED" && (
-                    <div className="flex gap-2">
-                      <Button size="sm" variant="outline" className="rounded-lg font-semibold" onClick={() => handleReject(b.id)}>Reject</Button>
-                      <Button size="sm" className="bg-success hover:bg-success/90 text-white rounded-lg font-bold px-4" onClick={() => handleStart(b.id)}>
-                        Start <span className="ml-1 opacity-80 text-xs">({b.accepterName})</span>
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              ))}
+      ) : (
+        <div className="px-4 pb-6 mt-4">
+          <div className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm">
+            <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2 mb-3">
+              <Swords className="text-primary size-5" />
+              Join Private Room
+            </h2>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="Enter 6-digit Code"
+                value={joinCode}
+                onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                maxLength={6}
+                className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 font-bold text-lg text-center tracking-widest focus:outline-none focus:ring-2 focus:ring-primary/50 uppercase"
+              />
+              <Button 
+                className="bg-primary hover:bg-primary/90 text-white font-bold h-auto rounded-xl px-6"
+                onClick={handleJoin}
+                disabled={isJoining || joinCode.length !== 6}
+              >
+                {isJoining ? "..." : "Join"}
+              </Button>
             </div>
           </div>
-        )}
-
-        {otherBattles.length > 0 && (
-          <div>
-            <h3 className="mb-3 text-[11px] font-bold text-gray-500 uppercase tracking-widest">Available Battles</h3>
-            <div className="space-y-3">
-              {otherBattles.map(b => (
-                <div key={b.id} className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm flex items-center justify-between">
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-bold text-sm text-gray-700">{b.creatorName}</span>
-                      {b.status === "OPEN" ? (
-                        <span className="text-[9px] font-bold bg-green-50 border border-green-200 text-green-700 px-2 py-0.5 rounded-full">OPEN</span>
-                      ) : (
-                        <span className="text-[9px] font-bold bg-orange-50 border border-orange-200 text-orange-700 px-2 py-0.5 rounded-full">PLAYING</span>
-                      )}
-                    </div>
-                    <div className="flex items-baseline gap-2">
-                      <p className="font-black text-xl text-gray-800">{inr(b.entryFee)}</p>
-                      <p className="text-[11px] text-gray-500 font-medium">Win: {inr(Math.round(b.entryFee * 2 * 0.95))}</p>
-                    </div>
-                  </div>
-                  {b.status === "OPEN" && (
-                    <Button size="sm" className="bg-primary hover:bg-primary/90 text-white rounded-lg font-bold px-6 h-9" onClick={() => handleAccept(b.id)}>
-                      Play
-                    </Button>
-                  )}
-                  {b.status === "ACCEPTED" && b.accepterId === user?.id && (
-                    <Button size="sm" variant="secondary" className="rounded-lg font-semibold bg-gray-100 text-gray-500 h-9" disabled>
-                      Requested
-                    </Button>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {openBattles.length === 0 && (
-          <div className="text-center py-12 text-gray-400 bg-gray-50 rounded-xl border border-dashed border-gray-200 mt-2">
-            <div className="mb-3 opacity-50">
-              <Swords className="size-8 mx-auto" />
-            </div>
-            <p className="text-sm font-semibold text-gray-500">No battles open</p>
-            <p className="text-xs mt-1">Tap Classic Ludo to create one!</p>
-          </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
-

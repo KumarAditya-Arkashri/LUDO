@@ -1,26 +1,24 @@
 import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { RedisService } from '../redis/redis.service';
 import { WalletService } from '../wallet/wallet.service';
-import { WalletType, TransactionType } from '@prisma/client';
-import { Prisma } from '@prisma/client';
-import { v4 as uuidv4 } from 'uuid';
+import { PrismaService } from '../prisma/prisma.service';
+import { WalletType, TransactionType, Prisma } from '@prisma/client';
+import { randomUUID } from 'crypto';
 import { GameStateEngine } from '../game-engine/state/game-state.engine';
 import { RoomManager } from '../realtime/rooms/room.manager';
 import { Server } from 'socket.io';
-import { OutgoingEvents } from '../realtime/events/event.types';
-import { StateCompressor } from '../realtime/serializer/state.compressor';
-
 import { MatchEngine } from '../game-engine/match/match.engine';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 
 export interface Battle {
-  id: string;
+  id: string; // The room code (e.g. LUDO-XXXX)
   creatorId: string;
   creatorName: string;
   entryFee: number;
   winningPrize: number;
-  status: 'OPEN' | 'ACCEPTED';
-  accepterId?: string;
-  accepterName?: string;
+  status: 'OPEN' | 'MATCH_INITIALIZING';
+  matchId?: string;
   createdAt: number;
 }
 
@@ -33,15 +31,21 @@ export class MatchmakingService {
     private readonly redis: RedisService,
     private readonly walletService: WalletService,
     private readonly roomManager: RoomManager,
+    private readonly prisma: PrismaService,
+    @InjectQueue('room-expiry') private readonly roomExpiryQueue: Queue,
   ) {}
 
   setServer(server: Server) {
     this.server = server;
   }
 
-  async getOpenBattles(): Promise<Battle[]> {
-    const battles = await this.redis.getClient().hgetall('battles');
-    return Object.values(battles).map(b => JSON.parse(b)).sort((a, b) => b.createdAt - a.createdAt);
+  private generateRoomCode(): string {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let code = '';
+    for (let i = 0; i < 6; i++) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return code;
   }
 
   private async deductBalance(userId: string, amount: number, refId: string, description: string): Promise<boolean> {
@@ -82,12 +86,6 @@ export class MatchmakingService {
       }
 
       await this.walletService.transactMultiple(txs);
-
-      await this.redis.getClient().hset(`battle_tx:${refId}:${userId}`, {
-        mainDeduction,
-        winDeduction: remainingToDeduct > 0 ? remainingToDeduct : 0,
-      });
-      await this.redis.getClient().expire(`battle_tx:${refId}:${userId}`, 86400); // 1 day
       return true;
     } catch (error) {
       this.logger.error(`Failed to deduct entry fee for ${userId}: ${error.message}`);
@@ -95,75 +93,87 @@ export class MatchmakingService {
     }
   }
 
-  private async refundBalance(userId: string, refId: string, description: string): Promise<boolean> {
-    const txKey = `battle_tx:${refId}:${userId}`;
-    const txData = await this.redis.getClient().hgetall(txKey);
-    
-    // If we can't find exact deduction, fallback to 0 (should not happen if flow is correct)
-    if (!txData || Object.keys(txData).length === 0) {
-        this.logger.error(`Could not find deduction data for refund: ${txKey}`);
-        return false;
-    }
+  private async refundBalance(roomCode: string, description: string): Promise<boolean> {
+    const deductions = await this.prisma.ledger.findMany({
+      where: {
+        transactionType: TransactionType.GAME_ENTRY,
+        referenceId: { in: [`${roomCode}_MAIN`, `${roomCode}_WIN`] }
+      }
+    });
 
-    const mainDeduct = Number(txData.mainDeduction || 0);
-    const winDeduct = Number(txData.winDeduction || 0);
+    if (deductions.length === 0) {
+      this.logger.warn(`No deduction data found for refunding room ${roomCode}.`);
+      return false;
+    }
 
     const txs: any[] = [];
-    const refundRef = `REFUND_${refId}_${Date.now()}`;
-
-    if (mainDeduct > 0) {
+    
+    for (const ded of deductions) {
+      if (!ded.referenceId) continue;
+      const walletType = ded.referenceId.endsWith('_MAIN') ? WalletType.MAIN : WalletType.WINNING;
       txs.push({
-        userId,
-        walletType: WalletType.MAIN,
+        userId: ded.userId,
+        walletType,
         transactionType: TransactionType.REFUND,
-        amount: mainDeduct,
-        referenceId: `${refundRef}_MAIN`,
-        description: `${description} (Main)`,
-      });
-    }
-
-    if (winDeduct > 0) {
-      txs.push({
-        userId,
-        walletType: WalletType.WINNING,
-        transactionType: TransactionType.REFUND,
-        amount: winDeduct,
-        referenceId: `${refundRef}_WIN`,
-        description: `${description} (Winning)`,
+        amount: Math.abs(Number(ded.amount)),
+        referenceId: `REFUND_${ded.referenceId}`,
+        description: `${description} (${walletType})`,
       });
     }
 
     if (txs.length > 0) {
       await this.walletService.transactMultiple(txs);
     }
-    await this.redis.getClient().del(txKey);
+    
     return true;
   }
 
-  private async withLock<T>(battleId: string, fn: () => Promise<T>): Promise<T> {
-    const lockKey = `lock:battle:${battleId}`;
-    const acquired = await this.redis.getClient().set(lockKey, 'locked', 'EX', 5, 'NX');
+  private async withLock<T>(lockId: string, fn: () => Promise<T>): Promise<T> {
+    const lockKey = `lock:battle:${lockId}`;
+    const token = randomUUID();
+    
+    const acquired = await this.redis.getClient().set(lockKey, token, 'EX', 30, 'NX');
     if (!acquired) {
-      throw new BadRequestException('Battle is currently being modified. Please try again.');
+      throw new BadRequestException('Room is currently being modified. Please try again.');
     }
+    
     try {
       return await fn();
     } finally {
-      await this.redis.getClient().del(lockKey);
+      const script = `
+        if redis.call("get", KEYS[1]) == ARGV[1] then
+            return redis.call("del", KEYS[1])
+        else
+            return 0
+        end
+      `;
+      await this.redis.getClient().eval(script, 1, lockKey, token);
     }
   }
 
-  async createBattle(creatorId: string, creatorName: string, entryFee: number): Promise<Battle> {
+  async createPrivateBattle(creatorId: string, creatorName: string, entryFee: number): Promise<string> {
     if (entryFee < 10 || entryFee % 10 !== 0) {
-        // Just a basic check, we can enforce % 50 on frontend
         throw new BadRequestException('Invalid entry fee amount');
     }
 
-    const battleId = uuidv4();
-    await this.deductBalance(creatorId, entryFee, battleId, `Entry fee deduction for ${entryFee} INR battle creation`);
+    let roomCode = '';
+    let isUnique = false;
+    
+    // Generate a unique room code
+    for (let i = 0; i < 5; i++) {
+      roomCode = this.generateRoomCode();
+      const existing = await this.redis.getClient().hget('battles', roomCode);
+      if (!existing) {
+        isUnique = true;
+        break;
+      }
+    }
+    if (!isUnique) throw new BadRequestException('Failed to generate a unique room code. Try again.');
+
+    await this.deductBalance(creatorId, entryFee, roomCode, `Entry fee deduction for ${entryFee} INR private room`);
 
     const battle: Battle = {
-      id: battleId,
+      id: roomCode,
       creatorId,
       creatorName,
       entryFee,
@@ -172,143 +182,154 @@ export class MatchmakingService {
       createdAt: Date.now(),
     };
 
-    await this.redis.getClient().hset('battles', battleId, JSON.stringify(battle));
-    this.logger.log(`Battle ${battleId} created by ${creatorId} for ${entryFee}`);
-    return battle;
+    await this.redis.getClient().hset('battles', roomCode, JSON.stringify(battle));
+    
+    // Queue background expiry job for 30 minutes from now (configurable via env if needed)
+    const expiryMs = parseInt(process.env.ROOM_EXPIRY_MS || '1800000', 10);
+    await this.roomExpiryQueue.add('expire-room', { roomCode }, { delay: expiryMs, attempts: 3, backoff: { type: "fixed", delay: 2000 }, removeOnComplete: true });
+
+    this.logger.log(`Private Room ${roomCode} created by ${creatorId} for ${entryFee}`);
+    return roomCode;
   }
 
-  async cancelBattle(userId: string, battleId: string): Promise<boolean> {
-    return this.withLock(battleId, async () => {
-      const battleData = await this.redis.getClient().hget('battles', battleId);
-      if (!battleData) throw new BadRequestException('Battle not found');
+  async joinPrivateBattle(accepterId: string, accepterName: string, roomCode: string): Promise<string> {
+    roomCode = roomCode.toUpperCase().trim();
+    return this.withLock(roomCode, async () => {
+      const battleData = await this.redis.getClient().hget('battles', roomCode);
+      if (!battleData) throw new BadRequestException('Room code invalid or expired');
       
       const battle: Battle = JSON.parse(battleData);
-      if (battle.creatorId !== userId) throw new BadRequestException('Only the creator can cancel this battle');
-      if (battle.status !== 'OPEN') throw new BadRequestException('Cannot cancel battle that is already accepted or started');
+      if (battle.creatorId === accepterId) throw new BadRequestException('Cannot join your own room');
+      if (battle.status !== 'OPEN') throw new BadRequestException('Room is no longer open');
 
-      await this.refundBalance(userId, battleId, `Refund for cancelled battle ${battleId}`);
-      await this.redis.getClient().hdel('battles', battleId);
+      // 1. Deduct joining player's balance first.
+      await this.deductBalance(accepterId, battle.entryFee, roomCode, `Entry fee deduction for joining ${battle.entryFee} INR private room`);
+
+      // 2. Try to initialize the match. If it fails, refund the joining player immediately.
+      try {
+        const matchId = randomUUID();
+        
+        // Write MATCH_INITIALIZING to Redis
+        battle.status = 'MATCH_INITIALIZING';
+        battle.matchId = matchId;
+        await this.redis.getClient().hset('battles', roomCode, JSON.stringify(battle));
+        
+        const playersInfo = [
+            {
+                playerId: battle.creatorId,
+                displayName: battle.creatorName || 'Player 1',
+                connectionState: 'CONNECTED' as any,
+                hasLeft: false,
+                joinedAt: new Date(),
+                disconnectedAt: null,
+            },
+            {
+                playerId: accepterId,
+                displayName: accepterName || 'Player 2',
+                connectionState: 'CONNECTED' as any,
+                hasLeft: false,
+                joinedAt: new Date(),
+                disconnectedAt: null,
+            }
+        ];
+
+        let matchState = MatchEngine.createMatch(matchId, playersInfo[0], { entryFee: battle.entryFee });
+        matchState = MatchEngine.joinMatch(matchState, playersInfo[1]);
+        let initialState = GameStateEngine.initialize(matchState);
+        
+        const startEvents = MatchEngine.startMatch(initialState.matchState, initialState.version);
+        for (const event of startEvents) {
+          initialState = GameStateEngine.applyEvent(initialState, event);
+        }
+
+        const stateWithMeta = {
+          ...initialState,
+          matchState: {
+            ...initialState.matchState,
+            metadata: {
+              ...initialState.matchState.metadata,
+              entryFee: battle.entryFee,
+            },
+          },
+        };
+
+        // Persist active match state
+        await this.roomManager.createRoom(matchId, stateWithMeta);
+
+        // Remove battle from waiting list
+        await this.redis.getClient().hdel('battles', roomCode);
+        
+        // No explicit financial cleanup needed since we query Ledger dynamically and hdel the battle
+
+        // Notify users
+        if (this.server) {
+          this.server.to(`user:${battle.creatorId}`).emit('MATCH_FOUND', { matchId, entryFee: battle.entryFee });
+          this.server.to(`user:${accepterId}`).emit('MATCH_FOUND', { matchId, entryFee: battle.entryFee });
+        }
+
+        this.logger.log(`Room ${roomCode} successfully started as Match ${matchId}`);
+        return matchId;
+
+      } catch (error) {
+        // Critical recovery: If room creation failed after deduction, refund ALL users who paid for this room (creator and joiner).
+        this.logger.error(`Failed to initialize match for room ${roomCode}. Triggering full refund. Error: ${error.message}`);
+        await this.refundBalance(roomCode, `Auto-refund for failed match start in room ${roomCode}`);
+        // Remove the room since it's broken
+        await this.redis.getClient().hdel('battles', roomCode);
+        throw new BadRequestException('Failed to start the match. Please try again.');
+      }
+    });
+  }
+
+  async cancelPrivateBattle(userId: string, roomCode: string): Promise<boolean> {
+    roomCode = roomCode.toUpperCase().trim();
+    return this.withLock(roomCode, async () => {
+      const battleData = await this.redis.getClient().hget('battles', roomCode);
+      if (!battleData) throw new BadRequestException('Room not found or already started');
       
-      this.logger.log(`Battle ${battleId} cancelled by ${userId}`);
+      const battle: Battle = JSON.parse(battleData);
+      if (battle.creatorId !== userId) throw new BadRequestException('Only the creator can cancel this room');
+      if (battle.status !== 'OPEN') throw new BadRequestException('Cannot cancel room that is no longer open');
+
+      await this.refundBalance(roomCode, `Refund for cancelled room ${roomCode}`);
+      await this.redis.getClient().hdel('battles', roomCode);
+      
+      this.logger.log(`Room ${roomCode} cancelled by ${userId}`);
       return true;
     });
   }
 
-  async acceptBattle(accepterId: string, accepterName: string, battleId: string): Promise<Battle> {
-    return this.withLock(battleId, async () => {
-      const battleData = await this.redis.getClient().hget('battles', battleId);
-      if (!battleData) throw new BadRequestException('Battle not found');
-      
-      const battle: Battle = JSON.parse(battleData);
-      if (battle.creatorId === accepterId) throw new BadRequestException('Cannot accept your own battle');
-      if (battle.status !== 'OPEN') throw new BadRequestException('Battle is no longer open');
-
-      await this.deductBalance(accepterId, battle.entryFee, battleId, `Entry fee deduction for accepting ${battle.entryFee} INR battle`);
-
-      battle.status = 'ACCEPTED';
-      battle.accepterId = accepterId;
-      battle.accepterName = accepterName;
-
-      await this.redis.getClient().hset('battles', battleId, JSON.stringify(battle));
-      this.logger.log(`Battle ${battleId} accepted by ${accepterId}`);
-      return battle;
-    });
-  }
-
-  async rejectBattle(userId: string, battleId: string): Promise<Battle> {
-    return this.withLock(battleId, async () => {
-      const battleData = await this.redis.getClient().hget('battles', battleId);
-      if (!battleData) throw new BadRequestException('Battle not found');
-      
-      const battle: Battle = JSON.parse(battleData);
-      if (battle.creatorId !== userId) throw new BadRequestException('Only the creator can reject players in this battle');
-      if (battle.status !== 'ACCEPTED' || !battle.accepterId) throw new BadRequestException('No player to reject');
-
-      // Refund the accepter
-      await this.refundBalance(battle.accepterId, battleId, `Refund for rejected battle ${battleId}`);
-
-      // Reset battle
-      battle.status = 'OPEN';
-      const oldAccepter = battle.accepterId;
-      delete battle.accepterId;
-      delete battle.accepterName;
-
-      await this.redis.getClient().hset('battles', battleId, JSON.stringify(battle));
-      this.logger.log(`Battle ${battleId} accepter ${oldAccepter} rejected by ${userId}`);
-      return battle;
-    });
-  }
-
-  async startBattle(userId: string, battleId: string): Promise<string> {
-    return this.withLock(battleId, async () => {
-      const battleData = await this.redis.getClient().hget('battles', battleId);
-      if (!battleData) throw new BadRequestException('Battle not found');
-      
-      const battle: Battle = JSON.parse(battleData);
-      if (battle.creatorId !== userId) throw new BadRequestException('Only the creator can start this battle');
-      if (battle.status !== 'ACCEPTED' || !battle.accepterId) throw new BadRequestException('Cannot start battle without an accepted opponent');
-
-      // Create match
-      const matchId = uuidv4();
-      const playersInfo = [
-          {
-              playerId: battle.creatorId,
-              displayName: battle.creatorName || 'Player 1',
-              connectionState: 'CONNECTED' as any,
-              hasLeft: false,
-              joinedAt: new Date(),
-              disconnectedAt: null,
-          },
-          {
-              playerId: battle.accepterId,
-              displayName: battle.accepterName || 'Player 2',
-              connectionState: 'CONNECTED' as any,
-              hasLeft: false,
-              joinedAt: new Date(),
-              disconnectedAt: null,
-          }
-      ];
-
-      let matchState = MatchEngine.createMatch(matchId, playersInfo[0], { entryFee: battle.entryFee });
-      matchState = MatchEngine.joinMatch(matchState, playersInfo[1]);
-      let initialState = GameStateEngine.initialize(matchState);
-      
-      const startEvents = MatchEngine.startMatch(initialState.matchState, initialState.version);
-      for (const event of startEvents) {
-        initialState = GameStateEngine.applyEvent(initialState, event);
+  async expireBattle(roomCode: string): Promise<boolean> {
+    return this.withLock(roomCode, async () => {
+      const battleData = await this.redis.getClient().hget('battles', roomCode);
+      if (!battleData) {
+        // Already started or manually cancelled. Safely ignore.
+        return true;
       }
-
-      // Inject entry fee metadata so Settlement knows how much to payout
-      const stateWithMeta = {
-        ...initialState,
-        matchState: {
-          ...initialState.matchState,
-          metadata: {
-            ...initialState.matchState.metadata,
-            entryFee: battle.entryFee,
-          },
-        },
-      };
-
-      // Store in Redis via RoomManager
-      await this.roomManager.createRoom(matchId, stateWithMeta);
-
-      // Remove battle from redis
-      await this.redis.getClient().hdel('battles', battleId);
       
-      // Clean up deduction records as they are now committed to the game
-      await this.redis.getClient().del(`battle_tx:${battleId}:${battle.creatorId}`);
-      await this.redis.getClient().del(`battle_tx:${battleId}:${battle.accepterId}`);
-
-      // Notify users
-      if (this.server) {
-        this.server.to(`user:${battle.creatorId}`).emit('MATCH_FOUND', { matchId, entryFee: battle.entryFee });
-        this.server.to(`user:${battle.accepterId}`).emit('MATCH_FOUND', { matchId, entryFee: battle.entryFee });
+      const battle: Battle = JSON.parse(battleData);
+      if (battle.status === 'OPEN') {
+        this.logger.log(`Room ${roomCode} expired in OPEN state. Initiating refund for users.`);
+        await this.refundBalance(roomCode, `Refund for expired room ${roomCode}`);
+        await this.redis.getClient().hdel('battles', roomCode);
+        
+        // Optionally emit to creator that room expired
+        if (this.server) {
+          this.server.to(`user:${battle.creatorId}`).emit('PRIVATE_BATTLE_EXPIRED', { roomCode });
+        }
+      } else if (battle.status === 'MATCH_INITIALIZING' && battle.matchId) {
+        // Recovery scenario: Crash happened during initialization
+        const matchState = await this.roomManager.getGameState(battle.matchId);
+        if (matchState) {
+          this.logger.log(`Room ${roomCode} recovered. Match ${battle.matchId} was successfully initialized. Cleaning up battles hash without refund.`);
+          await this.redis.getClient().hdel('battles', roomCode);
+        } else {
+          this.logger.log(`Room ${roomCode} failed initialization. Match ${battle.matchId} not found. Triggering full refund.`);
+          await this.refundBalance(roomCode, `Auto-refund for failed match start in room ${roomCode}`);
+          await this.redis.getClient().hdel('battles', roomCode);
+        }
       }
-
-      this.logger.log(`Battle ${battleId} started as Match ${matchId}`);
-      return matchId;
+      return true;
     });
   }
 }
-
