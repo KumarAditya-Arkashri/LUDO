@@ -1,8 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Menu, MessageCircle, Download } from "lucide-react";
+import { MessageCircle } from "lucide-react";
 import heroImage from "@/assets/ludo-hero.jpg";
 import { Logo } from "@/components/brand/logo";
-import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -23,9 +22,6 @@ function Dashboard() {
       {/* Header */}
       <header className="flex items-center justify-between px-4 py-3 bg-white border-b">
         <div className="flex items-center gap-3">
-          <button className="text-foreground p-1">
-            <Menu size={28} className="text-gray-600" />
-          </button>
           <div className="scale-75 origin-left">
             <Logo />
           </div>
@@ -88,16 +84,7 @@ function Dashboard() {
         </div>
       </div>
 
-      {/* Download App Button */}
-      <div className="mt-auto p-6 flex justify-center mb-8">
-        <Button className="bg-success hover:bg-success/90 text-white rounded-lg px-8 py-6 h-auto flex items-center gap-3 shadow-lg shadow-success/30 text-lg font-semibold transition-transform active:scale-95">
-          <svg viewBox="0 0 24 24" fill="currentColor" className="size-6">
-            <path d="M17.523 15.3414C17.5024 12.5977 19.7891 11.2335 19.8924 11.171C18.6186 9.32497 16.6343 9.04944 15.9619 9.01502C14.2818 8.84635 12.6468 10.0211 11.7854 10.0211C10.9241 10.0211 9.57867 9.03223 8.16912 9.06665C6.34448 9.08386 4.74366 10.134 3.81387 11.7701C1.90263 15.1118 3.33177 20.0381 5.1914 22.759C6.0867 24.0847 7.15418 25.5654 8.56715 25.5138C9.92844 25.4449 10.4449 24.6358 12.0634 24.6358C13.6819 24.6358 14.1468 25.5138 15.5598 25.4794C17.0244 25.4449 17.937 24.1363 18.815 22.8106C19.848 21.2957 20.2785 19.8324 20.313 19.7463C20.2441 19.7119 17.5574 18.679 17.523 15.3414ZM12.029 7.37894C12.7866 6.44915 13.3031 5.12347 13.1654 3.79779C12.029 3.84944 10.6343 4.57248 9.84232 5.51934C9.13639 6.34571 8.53375 7.70588 8.70594 9.01452C9.98013 9.11781 11.2715 8.30867 12.029 7.37894Z" transform="translate(1, -2) scale(0.9)"/>
-          </svg>
-          Download App
-          <Download size={20} />
-        </Button>
-      </div>
+
 
       {/* Floating WhatsApp Support */}
       <a 
