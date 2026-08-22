@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { History } from "lucide-react";
-import { EmptyState, GlassPanel, PageHeader, StatusPill } from "@/components/common/ui-kit";
+import { History, Swords } from "lucide-react";
+import { StatusPill } from "@/components/common/ui-kit";
 import { inr, shortDateTime } from "@/lib/format";
 
 export const Route = createFileRoute("/_player/history")({
@@ -26,21 +26,21 @@ function HistoryPage() {
   const matches: any[] = [];
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Match history"
-        subtitle="Results are final once the server declares them."
-      />
+    <div className="p-4 space-y-6 pb-20">
+      <div>
+        <h1 className="text-2xl font-black text-gray-800">History</h1>
+        <p className="text-xs text-gray-500 font-medium mt-1">Past match results</p>
+      </div>
 
       <div className="flex flex-wrap gap-2">
         {FILTERS.map((f) => (
           <button
             key={f}
             onClick={() => setFilter(f)}
-            className={`rounded-full border px-3.5 py-1.5 text-xs font-semibold capitalize transition-colors ${
+            className={`rounded-full px-4 py-1.5 text-xs font-bold capitalize transition-colors ${
               filter === f
-                ? "border-primary/40 bg-primary/15 text-primary"
-                : "border-border bg-secondary text-muted-foreground"
+                ? "bg-primary text-white shadow-sm"
+                : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
             }`}
           >
             {f}
@@ -48,83 +48,53 @@ function HistoryPage() {
         ))}
       </div>
 
-      <GlassPanel className="overflow-hidden">
+      <div className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
         {matches.length === 0 ? (
-          <EmptyState
-            title="No matches here yet"
-            description="Play a table and your results will show up in this list."
-            icon={<History className="size-5" />}
-          />
+          <div className="text-center py-16 text-gray-400 bg-gray-50">
+            <div className="mb-3 opacity-50">
+              <History className="size-10 mx-auto" />
+            </div>
+            <p className="text-sm font-semibold text-gray-600">No matches found</p>
+            <p className="text-xs mt-1 max-w-[200px] mx-auto leading-relaxed">
+              Play a table and your results will show up here.
+            </p>
+          </div>
         ) : (
-          <>
-            {/* Desktop table */}
-            <table className="hidden w-full text-sm md:table">
-              <thead className="border-b border-border text-left text-xs text-muted-foreground uppercase">
-                <tr>
-                  <th className="px-5 py-3 font-semibold">Match</th>
-                  <th className="px-5 py-3 font-semibold">Entry fee</th>
-                  <th className="px-5 py-3 font-semibold">Opponent</th>
-                  <th className="px-5 py-3 font-semibold">Winner</th>
-                  <th className="px-5 py-3 font-semibold">Amount won</th>
-                  <th className="px-5 py-3 font-semibold">Date</th>
-                  <th className="px-5 py-3 font-semibold">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {matches.map((m) => (
-                  <tr key={m.id}>
-                    <td className="px-5 py-3.5 font-semibold">{m.id}</td>
-                    <td className="text-money px-5 py-3.5">{inr(m.entryFee)}</td>
-                    <td className="px-5 py-3.5">{m.opponentName}</td>
-                    <td className="px-5 py-3.5">{m.winnerName}</td>
-                    <td
-                      className={`text-money px-5 py-3.5 font-bold ${m.isWin ? "text-accent" : "text-muted-foreground"}`}
-                    >
-                      {m.isWin ? `+${inr(m.amountWon)}` : "—"}
-                    </td>
-                    <td className="px-5 py-3.5 text-muted-foreground">
-                      {shortDateTime(m.playedAt)}
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <StatusPill status={m.status} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            {/* Mobile list */}
-            <ul className="divide-y divide-border md:hidden">
-              {matches.map((m) => (
-                <li key={m.id} className="px-4 py-4">
-                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-bold">vs {m.opponentName}</p>
-                      <p className="mt-0.5 text-xs text-muted-foreground">
-                        {m.id} · {shortDateTime(m.playedAt)}
+          <ul className="divide-y divide-gray-100">
+            {matches.map((m) => (
+              <li key={m.id} className="p-4">
+                <div className="flex items-center justify-between gap-3 mb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="size-8 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
+                      <Swords className="size-4 text-gray-500" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-gray-800">vs {m.opponentName}</p>
+                      <p className="mt-0.5 text-[10px] text-gray-400 font-medium tracking-wide">
+                        {shortDateTime(m.playedAt)}
                       </p>
                     </div>
-                    <StatusPill status={m.status} />
                   </div>
-                  <div className="mt-3 flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">
-                      Entry{" "}
-                      <span className="text-money font-bold text-foreground">
-                        {inr(m.entryFee)}
-                      </span>
-                    </span>
-                    <span
-                      className={`text-money font-bold ${m.isWin ? "text-accent" : "text-muted-foreground"}`}
-                    >
-                      {m.isWin ? `Won +${inr(m.amountWon)}` : `Lost ${m.winnerName}`}
-                    </span>
+                  <StatusPill status={m.status} />
+                </div>
+                
+                <div className="flex items-center justify-between bg-gray-50 rounded-lg p-3">
+                  <div>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase">Entry Fee</p>
+                    <p className="font-bold text-gray-700">{inr(m.entryFee)}</p>
                   </div>
-                </li>
-              ))}
-            </ul>
-          </>
+                  <div className="text-right">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase">Result</p>
+                    <p className={`font-black ${m.isWin ? "text-success" : "text-gray-500"}`}>
+                      {m.isWin ? `Won +${inr(m.amountWon)}` : `Lost to ${m.winnerName}`}
+                    </p>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
         )}
-      </GlassPanel>
+      </div>
     </div>
   );
 }

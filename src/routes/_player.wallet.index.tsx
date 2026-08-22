@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowDownToLine, ArrowUpFromLine, Gift, Trophy, Wallet } from "lucide-react";
-import { GlassPanel, PageHeader, StatCard, StatusPill } from "@/components/common/ui-kit";
+import { PageHeader, StatusPill } from "@/components/common/ui-kit";
 import { Button } from "@/components/ui/button";
 import { inr, shortDateTime } from "@/lib/format";
 import { useWalletStore } from "@/store/wallet-store";
@@ -38,83 +38,104 @@ function WalletPage() {
   }, [fetchHistory]);
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Wallet"
-        subtitle="Main balance plays, winning balance withdraws."
-        action={
-          <div className="flex gap-2">
-            <Button asChild size="sm">
-              <Link to="/wallet/deposit">
-                <ArrowDownToLine className="size-4" /> Deposit
-              </Link>
-            </Button>
-            <Button asChild size="sm" variant="secondary">
-              <Link to="/wallet/withdraw">
-                <ArrowUpFromLine className="size-4" /> Withdraw
-              </Link>
-            </Button>
-          </div>
-        }
-      />
-
-      <div className="grid gap-3 sm:grid-cols-3">
-        <StatCard
-          label="Main wallet"
-          value={inr(wallets.main)}
-          hint="Deposits + refunds"
-          icon={<Wallet className="size-5" />}
-          tone="primary"
-        />
-        <StatCard
-          label="Winning wallet"
-          value={inr(wallets.winning)}
-          hint="Withdrawable"
-          icon={<Trophy className="size-5" />}
-          tone="accent"
-        />
-        <StatCard
-          label="Referral wallet"
-          value={inr(wallets.referral)}
-          hint="Invite earnings"
-          icon={<Gift className="size-5" />}
-        />
+    <div className="p-4 space-y-6 pb-20">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-black text-gray-800">Wallet</h1>
+          <p className="text-xs text-gray-500 font-medium mt-1">Manage your funds</p>
+        </div>
+        <div className="flex gap-2">
+          <Button asChild size="sm" className="bg-primary hover:bg-primary/90 text-white rounded-lg px-4 h-9 font-bold">
+            <Link to="/wallet/deposit">
+              Deposit
+            </Link>
+          </Button>
+          <Button asChild size="sm" variant="outline" className="rounded-lg px-4 h-9 font-bold text-gray-700 bg-white shadow-sm border-gray-200">
+            <Link to="/wallet/withdraw">
+              Withdraw
+            </Link>
+          </Button>
+        </div>
       </div>
 
-      <GlassPanel className="overflow-hidden">
-        <div className="border-b border-border px-5 py-4">
-          <h2 className="font-bold">Transaction history</h2>
+      <div className="space-y-3">
+        {/* Main Wallet */}
+        <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="size-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center">
+              <Wallet className="size-5" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Main Wallet</p>
+              <p className="text-gray-400 text-[10px]">Deposits + refunds</p>
+            </div>
+          </div>
+          <p className="font-black text-xl text-gray-800">{inr(wallets.main)}</p>
         </div>
-        <ul className="divide-y divide-border">
+        
+        {/* Winning Wallet */}
+        <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="size-10 rounded-full bg-green-50 text-green-600 flex items-center justify-center">
+              <Trophy className="size-5" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Winning Wallet</p>
+              <p className="text-gray-400 text-[10px]">Withdrawable</p>
+            </div>
+          </div>
+          <p className="font-black text-xl text-gray-800">{inr(wallets.winning)}</p>
+        </div>
+
+        {/* Referral Wallet */}
+        <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="size-10 rounded-full bg-orange-50 text-orange-600 flex items-center justify-center">
+              <Gift className="size-5" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Referral Wallet</p>
+              <p className="text-gray-400 text-[10px]">Invite earnings</p>
+            </div>
+          </div>
+          <p className="font-black text-xl text-gray-800">{inr(wallets.referral)}</p>
+        </div>
+      </div>
+
+      <div className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden mt-6">
+        <div className="border-b border-gray-100 px-5 py-4 bg-gray-50">
+          <h2 className="font-bold text-sm text-gray-700">Transaction History</h2>
+        </div>
+        <ul className="divide-y divide-gray-100">
           {isLoading && (
-            <li className="px-5 py-8 text-center text-sm text-muted-foreground">Loading...</li>
+            <li className="px-5 py-8 text-center text-sm font-medium text-gray-400">Loading...</li>
           )}
           {!isLoading && transactions.length === 0 && (
-            <li className="px-5 py-8 text-center text-sm text-muted-foreground">
+            <li className="px-5 py-12 text-center text-sm font-medium text-gray-400">
               No transactions found
             </li>
           )}
           {transactions.map((t) => (
-            <li key={t.id} className="flex items-center justify-between gap-3 px-5 py-3.5">
+            <li key={t.id} className="flex items-center justify-between gap-3 px-5 py-4">
               <div className="min-w-0">
-                <p className="truncate text-sm font-semibold">{TYPE_LABEL[t.type] ?? t.type}</p>
-                <p className="truncate text-xs text-muted-foreground">
+                <p className="truncate text-sm font-bold text-gray-800">{TYPE_LABEL[t.type] ?? t.type}</p>
+                <p className="truncate text-xs text-gray-400 font-medium mt-0.5">
                   {t.reference ?? t.id} · {shortDateTime(t.createdAt)}
                 </p>
               </div>
-              <div className="flex shrink-0 items-center gap-3">
-                <StatusPill status={t.status} />
+              <div className="flex flex-col items-end gap-1 shrink-0">
                 <span
-                  className={`text-money text-sm font-bold ${t.amount >= 0 ? "text-accent" : "text-muted-foreground"}`}
+                  className={`text-sm font-black ${t.amount >= 0 ? "text-success" : "text-gray-800"}`}
                 >
                   {t.amount >= 0 ? "+" : "−"}
                   {inr(Math.abs(t.amount))}
                 </span>
+                <StatusPill status={t.status} />
               </div>
             </li>
           ))}
         </ul>
-      </GlassPanel>
+      </div>
     </div>
   );
 }

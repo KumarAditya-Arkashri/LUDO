@@ -12,6 +12,8 @@ import { useEffect, useState } from "react";
 import { getMatchmakingSocket, SOCKET_EVENTS } from "@/lib/socket";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
+import heroImage from "@/assets/ludo-hero.jpg";
+
 export const Route = createFileRoute("/_player/dashboard")({
   head: () => ({
     meta: [
@@ -107,155 +109,163 @@ function DashboardPage() {
     }
   };
 
-  const matches: any[] = [];
-
   const myBattles = openBattles.filter(b => b.creatorId === user?.id);
   const otherBattles = openBattles.filter(b => b.creatorId !== user?.id);
 
   return (
-    <div className="space-y-6">
-      {/* Hero / Quick Match Section */}
-      <section className="relative overflow-hidden rounded-3xl border border-border/40 bg-surface-2 p-6 sm:p-8 glow-ring">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-transparent to-transparent pointer-events-none"></div>
-        <div className="relative z-10 grid gap-6 sm:grid-cols-[1fr_auto] sm:items-center">
-          <div>
-            <span className="mb-2 inline-block rounded-full bg-primary/20 px-3 py-1 text-xs font-bold text-primary">
-              LIVE ARENA
-            </span>
-            <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">
-              Ready to <span className="text-primary">Play?</span>
-            </h1>
-            <p className="mt-2 text-sm text-muted-foreground sm:text-base max-w-md">
-              Join the next available table or create a custom match. Winner takes the pot!
-            </p>
-          </div>
-          
-          <div className="flex flex-col gap-3">
-            <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-              <DialogTrigger asChild>
-                <Button size="lg" className="h-14 w-full bg-primary text-lg font-bold text-primary-foreground shadow-[0_0_20px_rgba(209,170,55,0.4)] hover:bg-primary/90 sm:w-auto sm:px-10">
-                  QUICK MATCH
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="glass border-border/40 sm:rounded-3xl">
-                <DialogHeader>
-                  <DialogTitle className="text-2xl font-extrabold">Select Entry Fee</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-6 py-4">
-                  <div className="grid grid-cols-3 gap-3">
-                    {ENTRY_FEES.map((fee) => (
-                      <Button
-                        key={fee}
-                        variant={createFee === fee ? "default" : "outline"}
-                        className={createFee === fee ? "border-primary bg-primary/20 text-primary hover:bg-primary/30 font-bold" : "font-semibold"}
-                        onClick={() => setCreateFee(fee)}
-                      >
-                        {inr(fee)}
-                      </Button>
-                    ))}
-                  </div>
-                  <Button className="h-14 w-full text-lg font-bold shadow-[0_0_20px_rgba(209,170,55,0.4)]" onClick={handleCreate} disabled={isCreating}>
-                    Create for {inr(createFee)}
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
-          </div>
-        </div>
-      </section>
-
-      {/* Wallets */}
-      <div className="grid gap-3 sm:grid-cols-3">
-        <StatCard
-          label="Main wallet"
-          value={inr(wallets.main)}
-          hint="Usable for entry fees"
-          icon={<Wallet className="size-5" />}
-          tone="primary"
-        />
-        <StatCard
-          label="Winning wallet"
-          value={inr(wallets.winning)}
-          hint="Withdrawable to UPI"
-          icon={<Trophy className="size-5" />}
-          tone="accent"
-        />
-        <StatCard
-          label="Referral wallet"
-          value={inr(wallets.referral)}
-          hint="Earned from invites"
-          icon={<Gift className="size-5" />}
-        />
+    <div className="flex flex-col min-h-full">
+      {/* Top Notice Marquee */}
+      <div className="bg-primary py-2 px-4 text-center text-sm text-white overflow-hidden whitespace-nowrap">
+        <span>Commission: 5% &bull; Referral: 3% For All Games</span>
       </div>
 
-      {/* Live Battles Header */}
-      <section className="flex items-center justify-between pt-2">
-        <h2 className="text-xl font-extrabold">Open Battles</h2>
-      </section>
+      {/* Helpline Marquee */}
+      <div className="bg-[#e6f4ea] py-2 px-4 border-b border-[#cce5d3] text-[#1e7e34] overflow-hidden whitespace-nowrap">
+        <span className="animate-pulse">Support available 24/7. Play Responsibly.</span>
+      </div>
 
-      {myBattles.length > 0 && (
-        <section>
-          <h3 className="mb-2 text-sm font-semibold text-muted-foreground uppercase tracking-wide">My Battles</h3>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {myBattles.map(b => (
-              <GlassPanel key={b.id} className="p-4 flex items-center justify-between">
-                <div>
-                  <p className="font-bold text-lg">{inr(b.entryFee)}</p>
-                  <p className="text-xs text-muted-foreground">Win: {inr(Math.round(b.entryFee * 2 * 0.95))}</p>
-                </div>
-                {b.status === "OPEN" && (
-                  <Button size="sm" variant="destructive" onClick={() => handleCancel(b.id)}>
-                    Cancel
-                  </Button>
-                )}
-                {b.status === "ACCEPTED" && (
-                  <div className="flex gap-2">
-                    <Button size="sm" variant="outline" onClick={() => handleReject(b.id)}>Reject</Button>
-                    <Button size="sm" onClick={() => handleStart(b.id)}>Start ({b.accepterName})</Button>
-                  </div>
-                )}
-              </GlassPanel>
-            ))}
+      {/* Main Content: Game Cards */}
+      <div className="p-4 grid grid-cols-2 gap-4 mt-2">
+        {/* Card 1: Classic Ludo */}
+        <div className="flex flex-col items-center">
+          <div className="flex items-center gap-1 text-[10px] text-success font-bold mb-1">
+            <div className="size-2 rounded-full bg-success animate-pulse"></div>
+            LIVE
           </div>
-        </section>
-      )}
-
-      {otherBattles.length > 0 && (
-        <section>
-          <h3 className="mb-2 text-sm font-semibold text-muted-foreground uppercase tracking-wide">Available Battles</h3>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {otherBattles.map(b => (
-              <GlassPanel key={b.id} className="p-4 flex items-center justify-between">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-sm">{b.creatorName}</span>
-                    {b.status === "OPEN" && <StatusPill status="open" />}
-                    {b.status === "ACCEPTED" && <StatusPill status="in progress" />}
-                  </div>
-                  <p className="font-bold text-lg">{inr(b.entryFee)}</p>
+          
+          <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+            <DialogTrigger asChild>
+              <button className="block w-full text-left focus:outline-none">
+                <div className="rounded-xl overflow-hidden shadow-md aspect-square bg-gray-100 border-2 border-transparent hover:border-primary transition-colors">
+                  <img src={heroImage} alt="Classic Ludo" className="w-full h-full object-cover" />
                 </div>
-                {b.status === "OPEN" && (
-                  <Button size="sm" onClick={() => handleAccept(b.id)}>
-                    Play
-                  </Button>
-                )}
-                {b.status === "ACCEPTED" && b.accepterId === user?.id && (
-                  <Button size="sm" variant="secondary" disabled>
-                    Requested...
-                  </Button>
-                )}
-              </GlassPanel>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {openBattles.length === 0 && (
-        <div className="text-center py-10 text-muted-foreground">
-          No battles open. Create one to start playing!
+                <div className="mt-2 h-2 w-3/4 mx-auto bg-gray-200 rounded-full"></div>
+              </button>
+            </DialogTrigger>
+            <DialogContent className="bg-white border-border/40 sm:rounded-3xl w-[90%] max-w-md mx-auto">
+              <DialogHeader>
+                <DialogTitle className="text-2xl font-extrabold text-gray-800">Select Entry Fee</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-6 py-4">
+                <div className="grid grid-cols-3 gap-3">
+                  {ENTRY_FEES.map((fee) => (
+                    <Button
+                      key={fee}
+                      variant={createFee === fee ? "default" : "outline"}
+                      className={createFee === fee ? "border-primary bg-primary/10 text-primary hover:bg-primary/20 font-bold" : "font-semibold text-gray-700 bg-white hover:bg-gray-50"}
+                      onClick={() => setCreateFee(fee)}
+                    >
+                      {inr(fee)}
+                    </Button>
+                  ))}
+                </div>
+                <Button className="h-14 w-full text-lg font-bold bg-primary hover:bg-primary/90 text-white rounded-xl" onClick={handleCreate} disabled={isCreating}>
+                  {isCreating ? "Creating..." : `Create for ${inr(createFee)}`}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
-      )}
+        
+        {/* Card 2: Ludo Gold (Coming Soon) */}
+        <div className="flex flex-col items-center opacity-80">
+          <div className="flex items-center gap-1 text-[10px] text-success font-bold mb-1">
+            <div className="size-2 rounded-full bg-success"></div>
+            COMING SOON
+          </div>
+          <div className="w-full">
+            <div className="rounded-xl overflow-hidden shadow-md aspect-square bg-gray-100 grayscale">
+              <img src={heroImage} alt="Ludo Variants" className="w-full h-full object-cover opacity-80" />
+            </div>
+            <div className="mt-2 h-2 w-3/4 mx-auto bg-gray-200 rounded-full"></div>
+          </div>
+        </div>
+      </div>
 
+      {/* Live Battles */}
+      <div className="px-4 pb-6 mt-4">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+            <Swords className="text-primary size-5" />
+            Open Battles
+          </h2>
+        </div>
+
+        {myBattles.length > 0 && (
+          <div className="mb-6">
+            <h3 className="mb-3 text-[11px] font-bold text-gray-500 uppercase tracking-widest">My Battles</h3>
+            <div className="space-y-3">
+              {myBattles.map(b => (
+                <div key={b.id} className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm flex items-center justify-between">
+                  <div>
+                    <p className="font-black text-xl text-gray-800">{inr(b.entryFee)}</p>
+                    <p className="text-xs text-gray-500 font-medium">Win: <span className="text-success font-bold">{inr(Math.round(b.entryFee * 2 * 0.95))}</span></p>
+                  </div>
+                  {b.status === "OPEN" && (
+                    <Button size="sm" variant="destructive" className="rounded-lg font-bold px-4" onClick={() => handleCancel(b.id)}>
+                      Cancel
+                    </Button>
+                  )}
+                  {b.status === "ACCEPTED" && (
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" className="rounded-lg font-semibold" onClick={() => handleReject(b.id)}>Reject</Button>
+                      <Button size="sm" className="bg-success hover:bg-success/90 text-white rounded-lg font-bold px-4" onClick={() => handleStart(b.id)}>
+                        Start <span className="ml-1 opacity-80 text-xs">({b.accepterName})</span>
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {otherBattles.length > 0 && (
+          <div>
+            <h3 className="mb-3 text-[11px] font-bold text-gray-500 uppercase tracking-widest">Available Battles</h3>
+            <div className="space-y-3">
+              {otherBattles.map(b => (
+                <div key={b.id} className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm flex items-center justify-between">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-bold text-sm text-gray-700">{b.creatorName}</span>
+                      {b.status === "OPEN" ? (
+                        <span className="text-[9px] font-bold bg-green-50 border border-green-200 text-green-700 px-2 py-0.5 rounded-full">OPEN</span>
+                      ) : (
+                        <span className="text-[9px] font-bold bg-orange-50 border border-orange-200 text-orange-700 px-2 py-0.5 rounded-full">PLAYING</span>
+                      )}
+                    </div>
+                    <div className="flex items-baseline gap-2">
+                      <p className="font-black text-xl text-gray-800">{inr(b.entryFee)}</p>
+                      <p className="text-[11px] text-gray-500 font-medium">Win: {inr(Math.round(b.entryFee * 2 * 0.95))}</p>
+                    </div>
+                  </div>
+                  {b.status === "OPEN" && (
+                    <Button size="sm" className="bg-primary hover:bg-primary/90 text-white rounded-lg font-bold px-6 h-9" onClick={() => handleAccept(b.id)}>
+                      Play
+                    </Button>
+                  )}
+                  {b.status === "ACCEPTED" && b.accepterId === user?.id && (
+                    <Button size="sm" variant="secondary" className="rounded-lg font-semibold bg-gray-100 text-gray-500 h-9" disabled>
+                      Requested
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {openBattles.length === 0 && (
+          <div className="text-center py-12 text-gray-400 bg-gray-50 rounded-xl border border-dashed border-gray-200 mt-2">
+            <div className="mb-3 opacity-50">
+              <Swords className="size-8 mx-auto" />
+            </div>
+            <p className="text-sm font-semibold text-gray-500">No battles open</p>
+            <p className="text-xs mt-1">Tap Classic Ludo to create one!</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

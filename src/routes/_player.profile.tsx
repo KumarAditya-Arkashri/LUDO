@@ -2,7 +2,6 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { BadgeCheck, LogOut, Shield } from "lucide-react";
 import { toast } from "sonner";
-import { GlassPanel, PageHeader, StatCard } from "@/components/common/ui-kit";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -33,98 +32,110 @@ function ProfilePage() {
   const played = 0;
 
   return (
-    <div className="space-y-6">
-      <PageHeader title="Profile" subtitle="Account details, stats and security." />
-
-      <GlassPanel className="p-5">
-        <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-4">
-          <span className="text-money grid size-16 shrink-0 place-items-center rounded-2xl bg-primary/15 text-xl font-extrabold text-primary">
-            {initials(user?.name ?? "Player")}
-          </span>
-          <div className="min-w-0">
-            <p className="truncate text-lg font-extrabold">{user?.name ?? "Player"}</p>
-            <p className="truncate text-sm text-muted-foreground">
-              {user?.mobile ?? "—"} · joined{" "}
-              {user ? shortDate(user.createdAt || user.joinedAt) : "—"}
-            </p>
-            <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-accent/15 px-2.5 py-0.5 text-xs font-semibold text-accent">
-              <BadgeCheck className="size-3.5" /> Mobile verified
-            </p>
-          </div>
+    <div className="p-4 space-y-6 pb-20">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-black text-gray-800">Profile</h1>
+          <p className="text-xs text-gray-500 font-medium mt-1">Manage your account</p>
         </div>
-      </GlassPanel>
-
-      <div className="grid gap-3 sm:grid-cols-3">
-        <StatCard label="Matches played" value={String(played)} />
-        <StatCard label="Matches won" value={String(wins)} tone="accent" />
-        <StatCard
-          label="Total balance"
-          value={inr(wallets.main + wallets.winning + wallets.referral)}
-          tone="primary"
-        />
+        <Button
+          variant="outline"
+          size="sm"
+          className="text-red-600 border-red-200 bg-red-50 hover:bg-red-100 hover:text-red-700 font-bold"
+          onClick={() => {
+            logout();
+            navigate({ to: "/login" });
+          }}
+        >
+          <LogOut className="size-4 mr-1.5" /> Sign out
+        </Button>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <GlassPanel className="p-5">
-          <h2 className="font-bold">Personal details</h2>
-          <form
-            className="mt-4 space-y-4"
-            onSubmit={(e) => {
-              e.preventDefault();
-              updateProfile({ name });
-              toast.success("Profile updated");
-            }}
-          >
-            <div className="space-y-2">
-              <Label htmlFor="name">Display name</Label>
-              <Input id="name" value={name} onChange={(e) => setName(e.target.value)} />
+      <div className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm">
+        <div className="flex items-center gap-4">
+          <div className="size-16 shrink-0 flex items-center justify-center rounded-2xl bg-primary/10 text-xl font-black text-primary">
+            {initials(user?.name ?? "Player")}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-xl font-black text-gray-800">{user?.name ?? "Player"}</p>
+            <p className="truncate text-xs font-semibold text-gray-400 mt-0.5">
+              {user?.mobile ?? "—"}
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <span className="inline-flex items-center gap-1 rounded-full bg-green-50 border border-green-100 px-2.5 py-0.5 text-[10px] font-bold text-green-700 uppercase tracking-wide">
+                <BadgeCheck className="size-3" /> Verified
+              </span>
+              <span className="inline-flex items-center gap-1 rounded-full bg-gray-50 border border-gray-200 px-2.5 py-0.5 text-[10px] font-bold text-gray-500 uppercase tracking-wide">
+                Joined {user ? shortDate(user.createdAt || user.joinedAt) : "—"}
+              </span>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="mobile">Mobile number</Label>
-              <Input id="mobile" value={user?.mobile ?? ""} disabled />
-              <p className="text-xs text-muted-foreground">
-                Mobile number is your login ID and cannot be changed.
-              </p>
-            </div>
-            <Button type="submit">Save changes</Button>
-          </form>
-        </GlassPanel>
+          </div>
+        </div>
+      </div>
 
-        <GlassPanel className="p-5">
-          <h2 className="flex items-center gap-2 font-bold">
-            <Shield className="size-4 text-primary" /> Security
-          </h2>
-          <form
-            className="mt-4 space-y-4"
-            onSubmit={(e) => {
-              e.preventDefault();
-              toast.success("Password updated");
-            }}
-          >
-            <div className="space-y-2">
-              <Label htmlFor="current">Current password</Label>
-              <Input id="current" type="password" placeholder="••••••••" />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="next">New password</Label>
-              <Input id="next" type="password" placeholder="Minimum 6 characters" />
-            </div>
-            <Button type="submit" variant="secondary">
-              Update password
-            </Button>
-          </form>
-          <Separator className="my-5" />
-          <Button
-            variant="ghost"
-            className="text-destructive hover:text-destructive"
-            onClick={() => {
-              logout();
-              navigate({ to: "/login" });
-            }}
-          >
-            <LogOut className="size-4" /> Sign out
+      <div className="grid grid-cols-2 gap-3">
+        <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Total Balance</p>
+          <p className="font-black text-xl text-primary">{inr(wallets.main + wallets.winning + wallets.referral)}</p>
+        </div>
+        <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Win Rate</p>
+          <p className="font-black text-xl text-gray-800">
+            {played > 0 ? Math.round((wins / played) * 100) : 0}%
+          </p>
+        </div>
+      </div>
+
+      <div className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm space-y-4">
+        <h2 className="font-black text-gray-800">Personal Details</h2>
+        <form
+          className="space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            updateProfile({ name });
+            toast.success("Profile updated");
+          }}
+        >
+          <div className="space-y-1.5">
+            <Label htmlFor="name" className="text-xs font-bold text-gray-500">Display name</Label>
+            <Input id="name" value={name} onChange={(e) => setName(e.target.value)} className="bg-gray-50 border-gray-200" />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="mobile" className="text-xs font-bold text-gray-500">Mobile number</Label>
+            <Input id="mobile" value={user?.mobile ?? ""} disabled className="bg-gray-100 border-gray-200 text-gray-500" />
+            <p className="text-[10px] font-semibold text-gray-400">
+              Mobile number is your login ID and cannot be changed.
+            </p>
+          </div>
+          <Button type="submit" className="w-full bg-primary hover:bg-primary/90 text-white font-bold h-12 rounded-xl">
+            Save Changes
           </Button>
-        </GlassPanel>
+        </form>
+      </div>
+
+      <div className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm space-y-4">
+        <h2 className="flex items-center gap-2 font-black text-gray-800">
+          <Shield className="size-4 text-primary" /> Security
+        </h2>
+        <form
+          className="space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            toast.success("Password updated");
+          }}
+        >
+          <div className="space-y-1.5">
+            <Label htmlFor="current" className="text-xs font-bold text-gray-500">Current password</Label>
+            <Input id="current" type="password" placeholder="••••••••" className="bg-gray-50 border-gray-200" />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="next" className="text-xs font-bold text-gray-500">New password</Label>
+            <Input id="next" type="password" placeholder="Minimum 6 characters" className="bg-gray-50 border-gray-200" />
+          </div>
+          <Button type="submit" variant="secondary" className="w-full bg-gray-100 text-gray-700 hover:bg-gray-200 font-bold h-12 rounded-xl border border-gray-200">
+            Update Password
+          </Button>
+        </form>
       </div>
     </div>
   );
