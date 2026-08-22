@@ -8,7 +8,7 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import { Toaster } from "@/components/ui/sonner";
 
@@ -132,7 +132,14 @@ function RootComponent() {
   
   // A simple bottom navigation for the layout
   const BottomNav = () => {
-    const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+    const [isClient, setIsClient] = useState(false);
+    useEffect(() => {
+      setIsClient(true);
+    }, []);
+
+    // Avoid hydration mismatch: always assume unauthenticated during SSR
+    // and the first client render tick.
+    const isAuthenticated = isClient ? useAuthStore((s) => s.isAuthenticated) : false;
     
     return (
       <div className="fixed bottom-0 w-full max-w-[480px] border-t bg-primary px-4 py-3 pb-safe z-50">

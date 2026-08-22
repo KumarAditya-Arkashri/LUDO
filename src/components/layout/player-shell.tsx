@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import {
   Gamepad2,
@@ -28,12 +28,20 @@ const NAV = [
 ] as const;
 
 export function PlayerShell() {
+  const [isClient, setIsClient] = useState(false);
   const user = useAuthStore((s) => s.user);
   const { wallets, fetchWallet } = useWalletStore();
 
   useEffect(() => {
+    setIsClient(true);
     fetchWallet();
   }, [fetchWallet]);
+
+  // Prevent SSR leaking protected content and hydration errors.
+  // The client-side redirect will handle unauthenticated users before they see this.
+  if (!isClient) {
+    return <div className="flex flex-col min-h-screen bg-surface" />;
+  }
 
   const total = wallets.main + wallets.winning + wallets.referral;
 
