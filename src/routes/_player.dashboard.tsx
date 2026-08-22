@@ -42,7 +42,6 @@ function DashboardPage() {
   const [isJoining, setIsJoining] = useState(false);
 
   useEffect(() => {
-
     // The game store handles joining the match data stream, but we need to handle the UI redirect.
     const socket = getMatchmakingSocket();
     
@@ -54,7 +53,7 @@ function DashboardPage() {
     return () => {
       socket.off(SOCKET_EVENTS.matchFound, onMatchFound);
     };
-  }, [connectLobby, navigate]);
+  }, [navigate]);
 
   const handleCreate = async () => {
     try {
