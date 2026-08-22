@@ -5,7 +5,20 @@ import {
   TOTAL_MAIN_CELLS,
 } from '../constants/board.constants';
 
+import { MatchState } from '../match/match.model';
+
 export class BoardEngine {
+  /**
+   * Resolves a raw playerId string to the logical PlayerId enum color based on index.
+   */
+  static resolvePlayerColor(state: MatchState, playerId: string): PlayerId {
+    const idx = state.players.findIndex(p => p.playerId === playerId);
+    if (idx === 0) return PlayerId.RED;
+    if (idx === 1) return PlayerId.BLUE;
+    if (idx === 2) return PlayerId.YELLOW;
+    if (idx === 3) return PlayerId.GREEN;
+    return PlayerId.RED;
+  }
   /**
    * Returns the global position on the 0-51 track for a token given its progress.
    * Returns null if the token is in the yard (-1) or on the home straight (>= 52).

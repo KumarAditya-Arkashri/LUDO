@@ -16,7 +16,8 @@ export const WSAuthMiddleware = (): SocketMiddleware => {
         return next(new Error('Unauthorized'));
       }
 
-      const secret = process.env.JWT_ACCESS_SECRET || 'secret';
+      const secret = process.env.JWT_ACCESS_SECRET;
+      if (!secret) throw new Error('JWT_ACCESS_SECRET is required');
       const decoded = jwt.verify(token, secret);
 
       // Inject user into socket for later use in Gateway

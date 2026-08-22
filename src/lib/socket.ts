@@ -47,7 +47,7 @@ export const SOCKET_EVENTS = {
 } as const;
 
 export type SocketEvent = (typeof SOCKET_EVENTS)[keyof typeof SOCKET_EVENTS];
-export const SOCKET_URL = import.meta.env.VITE_SOCKET_URL ?? "";
+export const SOCKET_URL = import.meta.env['VITE_SOCKET_URL'] ?? "";
 
 class SocketManager {
   private static gameInstance: Socket | null = null;

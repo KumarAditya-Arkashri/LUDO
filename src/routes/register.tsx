@@ -56,7 +56,7 @@ function RegisterPage() {
         password: form.password,
       };
       if (form.referral.trim()) {
-        payload.referralCode = form.referral.trim();
+        payload['referralCode'] = form.referral.trim();
       }
       
       const slowWarningTimeout = setTimeout(() => {

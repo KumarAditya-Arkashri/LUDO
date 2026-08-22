@@ -165,13 +165,19 @@ export class AuthService {
   private async generateTokens(user: any) {
     const payload = { sub: user.id, mobile: user.mobile, role: user.role };
 
+    const accessSecret = process.env.JWT_ACCESS_SECRET;
+    if (!accessSecret) throw new Error('JWT_ACCESS_SECRET is required');
+
     const accessToken = this.jwtService.sign(payload, {
-      secret: process.env.JWT_ACCESS_SECRET || 'secret',
+      secret: accessSecret,
       expiresIn: '15m',
     });
 
+    const refreshSecret = process.env.JWT_REFRESH_SECRET;
+    if (!refreshSecret) throw new Error('JWT_REFRESH_SECRET is required');
+
     const refreshToken = this.jwtService.sign(payload, {
-      secret: process.env.JWT_REFRESH_SECRET || 'refresh-secret',
+      secret: refreshSecret,
       expiresIn: '7d',
     });
 

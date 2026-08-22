@@ -12,8 +12,25 @@ import { Server, Socket } from 'socket.io';
 import { PracticeMatchService } from './practice-match.service';
 import { WSAuthMiddleware } from '../realtime/middleware/ws-auth.middleware';
 
+const rawOrigins = process.env.ALLOWED_ORIGINS || '';
+const wsAllowedOrigins: string[] = rawOrigins
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
+
+if (process.env.NODE_ENV !== 'production') {
+  wsAllowedOrigins.push(
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'http://127.0.0.1:5173',
+  );
+}
+
 @WebSocketGateway({
-  cors: { origin: '*' },
+  cors: {
+    origin: wsAllowedOrigins.length > 0 ? wsAllowedOrigins : false,
+    credentials: true,
+  },
   namespace: '/practice',
 })
 export class PracticeMatchGateway implements OnGatewayInit, OnGatewayConnection {

@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, Length, IsOptional } from 'class-validator';
+import { IsString, IsNotEmpty, Length, IsOptional, Matches } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class RegisterDto {
@@ -11,6 +11,7 @@ export class RegisterDto {
   @ApiProperty({ example: 'John Doe' })
   @IsString()
   @IsNotEmpty()
+  @Matches(/^[a-zA-Z0-9 ]*$/, { message: 'Name can only contain alphanumeric characters and spaces' })
   name: string;
 
   @ApiProperty({ example: 'password123' })

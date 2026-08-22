@@ -16,7 +16,7 @@ export class DiceState {
     this.currentValue = currentValue;
     this.previousValues = Object.freeze([...previousValues]);
     this.consecutiveSixes = consecutiveSixes;
-    this.rolledAt = rolledAt ? new Date(rolledAt.getTime()) : null;
+    this.rolledAt = rolledAt ? new Date(rolledAt) : null;
 
     Object.freeze(this);
   }

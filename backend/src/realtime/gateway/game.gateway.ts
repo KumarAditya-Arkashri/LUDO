@@ -88,7 +88,12 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     const joined = await this.roomManager.joinRoom(client.id, matchId, playerId); if (!joined) return this.sendError(client, 'JOIN_FAILED', 'Could not join room. Verify match ID and participation.');
     client.join(matchId); this.logger.log(`Client ${client.id} joined room ${matchId} as player ${playerId}`);
     if (existingSocketId && existingSocketId !== client.id) { const oldSocket = this.server?.sockets?.get(existingSocketId); this.roomManager.removeSocketConnection(existingSocketId); if (oldSocket && !oldSocket.disconnected) { const duplicatePayload: ErrorPayload = { code: 'DUPLICATE_CONNECTION', message: 'You joined from another device.' }; oldSocket.emit(OE.DUPLICATE_CONNECTION, duplicatePayload); oldSocket.emit(OE.ERROR, duplicatePayload); setTimeout(() => { if (!oldSocket.disconnected) oldSocket.disconnect(true); }, 250); } }
-    client.to(matchId).emit(OE.PLAYER_RECONNECT, { playerId }); const state = await this.roomManager.getGameState(matchId); if (state) client.emit(OE.GAME_STATE, { matchId, compressedState: StateCompressor.compress(state) });
+    client.to(matchId).emit(OE.PLAYER_RECONNECT, { playerId }); 
+    const state = await this.roomManager.getGameState(matchId); 
+    if (state) {
+      this.logger.log(`[DEBUG] GameState tokenStates length: ${state.matchState.tokenStates?.length}`);
+      client.emit(OE.GAME_STATE, { matchId, compressedState: StateCompressor.compress(state) });
+    }
   }
   @SubscribeMessage(IE.LEAVE_ROOM)
   async handleLeaveRoom(@ConnectedSocket() client: Socket) { const conn = this.roomManager.getPlayerConnection(client.id); if (conn) { client.leave(conn.matchId); await this.roomManager.leaveRoom(client.id); } }
@@ -105,7 +110,6 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     }
   }
 
-  @UseGuards(ThrottlerGuard)
   @SubscribeMessage(IE.ROLL_DICE)
   async handleRollDice(
     @ConnectedSocket() client: Socket,
@@ -173,7 +177,6 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     }
   }
 
-  @UseGuards(ThrottlerGuard)
   @SubscribeMessage(IE.MOVE_TOKEN)
   async handleMoveToken(
     @ConnectedSocket() client: Socket,

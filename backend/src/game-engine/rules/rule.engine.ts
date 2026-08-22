@@ -17,6 +17,7 @@ export class RuleEngine {
     targetToken: TokenState,
     allTokens: TokenState[],
     rules: RuleConfig,
+    playerColors: Record<string, PlayerId>,
   ): RuleResult {
     const nextPlayerInCycle = this.calculateNextPlayer(
       request.playerId,
@@ -53,8 +54,9 @@ export class RuleEngine {
 
     // 3. Evaluate Capture
     // Capture can only happen if the token is on the main track (progress 0..51)
+    const actorColor = playerColors[request.playerId] || PlayerId.RED;
     const targetGlobalPosition = BoardEngine.getGlobalPosition(
-      request.playerId as PlayerId,
+      actorColor,
       nextProgress,
     );
 
@@ -69,6 +71,7 @@ export class RuleEngine {
         targetGlobalPosition,
         request.playerId,
         allTokens,
+        playerColors,
       );
       if (isBlocked) {
         return RuleResult.invalid(
@@ -83,6 +86,7 @@ export class RuleEngine {
         targetGlobalPosition,
         request.playerId,
         allTokens,
+        playerColors,
       );
 
       // Simple capture rule: if there are vulnerable tokens, capture them. 
@@ -160,13 +164,15 @@ export class RuleEngine {
     globalPosition: number,
     movingPlayerId: string,
     allTokens: TokenState[],
+    playerColors: Record<string, PlayerId>,
   ): TokenState[] {
     return allTokens.filter((t) => {
       if (t.playerId === movingPlayerId || t.state !== TokenStateEnum.ACTIVE) {
         return false;
       }
       
-      const tGlobalPosition = BoardEngine.getGlobalPosition(t.playerId as PlayerId, t.progress);
+      const tColor = playerColors[t.playerId] || PlayerId.RED;
+    const tGlobalPosition = BoardEngine.getGlobalPosition(tColor, t.progress);
       return tGlobalPosition === globalPosition;
     });
   }
@@ -179,13 +185,15 @@ export class RuleEngine {
     globalPosition: number,
     movingPlayerId: string,
     allTokens: TokenState[],
+    playerColors: Record<string, PlayerId>,
   ): boolean {
     const byPlayer = new Map<string, number>();
     for (const t of allTokens) {
       if (t.playerId === movingPlayerId || t.state !== TokenStateEnum.ACTIVE) {
         continue;
       }
-      const gPos = BoardEngine.getGlobalPosition(t.playerId as PlayerId, t.progress);
+      const tColor = playerColors[t.playerId] || PlayerId.RED;
+      const gPos = BoardEngine.getGlobalPosition(tColor, t.progress);
       if (gPos === globalPosition) {
         byPlayer.set(t.playerId, (byPlayer.get(t.playerId) ?? 0) + 1);
       }

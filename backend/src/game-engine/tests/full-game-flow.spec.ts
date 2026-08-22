@@ -18,7 +18,6 @@ const makePlayer = (id: string): MatchPlayer => ({
   playerId: id,
   displayName: id,
   connectionState: 'CONNECTED',
-  hasLeft: false,
   joinedAt: new Date(),
   disconnectedAt: null,
 });
@@ -214,7 +213,7 @@ describe('Full Game Flow — Integration', () => {
         MatchEngine.createMatch('test-match', makePlayer('p1'), { entryFee: 10 }),
         makePlayer('p2'),
       );
-      const replayed = GameStateEngine.replay(initialMatchState, gameState.history);
+      const replayed = GameStateEngine.replay(initialMatchState, [...gameState.history]);
 
       expect(replayed.matchState.tokenStates).toEqual(gameState.matchState.tokenStates);
       expect(replayed.matchState.currentPlayer).toBe(gameState.matchState.currentPlayer);

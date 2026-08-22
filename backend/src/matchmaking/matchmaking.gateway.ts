@@ -11,9 +11,27 @@ import { Server, Socket } from 'socket.io';
 import { Logger } from '@nestjs/common';
 import { MatchmakingService } from './matchmaking.service';
 import { WSAuthMiddleware } from '../realtime/middleware/ws-auth.middleware';
+// ThrottlerGuard is HTTP-only; do not use @UseGuards(ThrottlerGuard) on WS handlers
+
+const rawOrigins = process.env.ALLOWED_ORIGINS || '';
+const wsAllowedOrigins: string[] = rawOrigins
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
+
+if (process.env.NODE_ENV !== 'production') {
+  wsAllowedOrigins.push(
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'http://127.0.0.1:5173',
+  );
+}
 
 @WebSocketGateway({
-  cors: { origin: '*' },
+  cors: { 
+    origin: wsAllowedOrigins.length > 0 ? wsAllowedOrigins : false,
+    credentials: true,
+  },
   namespace: '/matchmaking',
 })
 export class MatchmakingGateway implements OnGatewayInit, OnGatewayConnection {

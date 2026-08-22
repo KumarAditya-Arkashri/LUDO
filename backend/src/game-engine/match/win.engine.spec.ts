@@ -8,7 +8,6 @@ const makePlayer = (id: string): MatchPlayer => ({
   playerId: id,
   displayName: id,
   connectionState: 'CONNECTED',
-  hasLeft: false,
   joinedAt: new Date(),
   disconnectedAt: null,
 });

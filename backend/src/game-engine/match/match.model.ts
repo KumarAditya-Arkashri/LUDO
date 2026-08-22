@@ -33,14 +33,14 @@ export class MatchState {
     // Deep clone players to preserve immutability
     this.players = players.map((p) => ({
       ...p,
-      joinedAt: new Date(p.joinedAt.getTime()),
+      joinedAt: new Date(p.joinedAt),
       disconnectedAt: p.disconnectedAt
-        ? new Date(p.disconnectedAt.getTime())
+        ? new Date(p.disconnectedAt)
         : null,
     }));
     this.currentPlayer = currentPlayer;
-    this.startedAt = startedAt ? new Date(startedAt.getTime()) : null;
-    this.endedAt = endedAt ? new Date(endedAt.getTime()) : null;
+    this.startedAt = startedAt ? new Date(startedAt) : null;
+    this.endedAt = endedAt ? new Date(endedAt) : null;
     this.winner = winner;
     this.turnNumber = turnNumber;
 

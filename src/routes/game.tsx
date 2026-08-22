@@ -44,6 +44,7 @@ function GameScreen() {
     moveToken,
     tickTimer,
     leaveMatch,
+    joinMatch,
   } = useGameStore();
 
   useEffect(() => {
@@ -58,6 +59,15 @@ function GameScreen() {
     }
     return undefined;
   }, [winnerColor, navigate]);
+
+  useEffect(() => {
+    if (players.length === 0 || phase === "waiting") {
+      const storedMatchId = localStorage.getItem("activeMatchId");
+      if (storedMatchId && !roomId) {
+        joinMatch(storedMatchId);
+      }
+    }
+  }, [players.length, phase, roomId, joinMatch]);
 
   const handleLeave = () => {
     leaveMatch();

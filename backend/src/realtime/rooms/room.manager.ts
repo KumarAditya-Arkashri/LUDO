@@ -76,31 +76,52 @@ export class RoomManager {
 
   async joinRoom(socketId: string, matchId: string, playerId: string): Promise<boolean> {
     if (this.shuttingDown) return false;
-    const state = await this.getGameState(matchId);
-    if (!state) {
-      this.logger.warn(`Room ${matchId} not found in Redis for join request by ${playerId}`);
-      return false;
-    }
-    const isParticipant = state.matchState.players.some((p) => p.playerId === playerId);
-    if (!isParticipant) {
-      this.logger.warn(`Player ${playerId} is not a participant of match ${matchId}`);
-      return false;
-    }
-
-    this.socketMap.set(socketId, { socketId, playerId, matchId, status: 'CONNECTED' });
-    await this.redis.getClient().hset(`match_conns:${matchId}`, playerId, 'CONNECTED');
-
-    const timerKey = `${matchId}:${playerId}`;
     
-    // Remove the delayed job from BullMQ if it exists
-    await this.matchTimeoutQueue.remove(timerKey);
+    const lockKey = `lock:room:${matchId}`;
+    let acquired: string | null = null;
     
-    const resumedEvent = MatchEngine.generateEventBase(matchId, state.version, GameEventType.MATCH_RESUME, playerId);
-    const resumedState = GameStateEngine.applyEvent(state, resumedEvent);
-    await this.updateGameState(matchId, resumedState, state.version);
-    this.logger.log(`Player ${playerId} reconnected to ${matchId}`);
+    // Retry acquiring lock up to 5 times (1 second total wait) to handle simultaneous join requests
+    for (let i = 0; i < 5; i++) {
+      acquired = await this.redis.getClient().set(lockKey, 'locked', 'EX', 2, 'NX');
+      if (acquired) break;
+      await new Promise(resolve => setTimeout(resolve, 200));
+    }
+    
+    if (!acquired) {
+      this.logger.warn(`Could not acquire lock for room ${matchId} (Player ${playerId} join request)`);
+      throw new Error(`StateConflictError: Version mismatch (could not acquire lock)`);
+    }
+    
+    try {
+      const state = await this.getGameState(matchId);
+      if (!state) {
+        this.logger.warn(`Room ${matchId} not found in Redis for join request by ${playerId}`);
+        return false;
+      }
+      const isParticipant = state.matchState.players.some((p) => p.playerId === playerId);
+      if (!isParticipant) {
+        this.logger.warn(`Player ${playerId} is not a participant of match ${matchId}`);
+        return false;
+      }
 
-    return true;
+      this.socketMap.set(socketId, { socketId, playerId, matchId, status: 'CONNECTED' });
+      await this.redis.getClient().hset(`match_conns:${matchId}`, playerId, 'CONNECTED');
+
+      const timerKey = `${matchId}_${playerId}`;
+      
+      if (this.matchTimeoutQueue) {
+        await this.matchTimeoutQueue.remove(timerKey);
+      }
+      
+      const resumedEvent = MatchEngine.generateEventBase(matchId, state.version, GameEventType.MATCH_RESUME, playerId);
+      const resumedState = GameStateEngine.applyEvent(state, resumedEvent);
+      await this.updateGameState(matchId, resumedState, state.version);
+      this.logger.log(`Player ${playerId} reconnected to ${matchId}`);
+
+      return true;
+    } finally {
+      await this.redis.getClient().del(lockKey);
+    }
   }
 
   getExistingSocketIdForPlayer(matchId: string, playerId: string): string | null {
@@ -164,18 +185,20 @@ export class RoomManager {
         `Player ${conn.playerId} disconnected from ${conn.matchId}. Starting delayed job.`,
       );
 
-      const timerKey = `${conn.matchId}:${conn.playerId}`;
+      const timerKey = `${conn.matchId}_${conn.playerId}`;
       
-      // Add a delayed job to BullMQ
-      await this.matchTimeoutQueue.add(
-        'match_timeout', 
-        { matchId: conn.matchId, playerId: conn.playerId },
-        { 
-          jobId: timerKey, 
-          delay: this.RECONNECT_TIMEOUT_MS,
-          removeOnComplete: true,
-        }
-      );
+      if (this.matchTimeoutQueue) {
+        // Add a delayed job to BullMQ
+        await this.matchTimeoutQueue.add(
+          'match_timeout', 
+          { matchId: conn.matchId, playerId: conn.playerId },
+          { 
+            jobId: timerKey, 
+            delay: this.RECONNECT_TIMEOUT_MS,
+            removeOnComplete: true,
+          }
+        );
+      }
     }
 
     if (this.shuttingDown) return;

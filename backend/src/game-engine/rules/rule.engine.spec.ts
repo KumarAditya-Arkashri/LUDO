@@ -26,6 +26,14 @@ const request = (
   diceValue: number,
 ): MoveRequest => ({ playerId, tokenId, diceValue, isThirdSix: false });
 
+
+const mockPlayerColors: Record<string, PlayerId> = {
+  [PlayerId.RED]: PlayerId.RED,
+  [PlayerId.GREEN]: PlayerId.GREEN,
+  [PlayerId.YELLOW]: PlayerId.YELLOW,
+  [PlayerId.BLUE]: PlayerId.BLUE,
+};
+
 const players = [PlayerId.RED, PlayerId.GREEN];
 
 // ─── evaluateMove ─────────────────────────────────────────────────────────────
@@ -40,6 +48,7 @@ describe('RuleEngine.evaluateMove', () => {
         token,
         [token],
         STANDARD_RULES,
+        mockPlayerColors,
       );
       expect(result.isValid).toBe(false);
       expect(result.reason).toContain('opponent');
@@ -53,6 +62,7 @@ describe('RuleEngine.evaluateMove', () => {
         token,
         [token],
         STANDARD_RULES,
+        mockPlayerColors,
       );
       expect(result.isValid).toBe(false);
     });
@@ -65,6 +75,7 @@ describe('RuleEngine.evaluateMove', () => {
         token,
         [token],
         STANDARD_RULES,
+        mockPlayerColors,
       );
       expect(result.isValid).toBe(false);
     });
@@ -77,6 +88,7 @@ describe('RuleEngine.evaluateMove', () => {
         token,
         [token],
         STANDARD_RULES,
+        mockPlayerColors,
       );
       expect(result.isValid).toBe(true);
     });
@@ -90,6 +102,7 @@ describe('RuleEngine.evaluateMove', () => {
         token,
         [token],
         STANDARD_RULES,
+        mockPlayerColors,
       );
       expect(result.isValid).toBe(false);
     });
@@ -110,6 +123,7 @@ describe('RuleEngine.evaluateMove', () => {
         p1Token,
         allTokens,
         STANDARD_RULES,
+        mockPlayerColors,
       );
       expect(result.isValid).toBe(true);
       expect(result.capture).toBe(true);
@@ -130,6 +144,7 @@ describe('RuleEngine.evaluateMove', () => {
         p1Token,
         allTokens,
         STANDARD_RULES,
+        mockPlayerColors,
       );
       expect(result.isValid).toBe(true);
       expect(result.capture).toBe(false);
@@ -145,6 +160,7 @@ describe('RuleEngine.evaluateMove', () => {
         token,
         [token],
         STANDARD_RULES,
+        mockPlayerColors,
       );
       expect(result.extraTurn).toBe(true);
     });
@@ -157,6 +173,7 @@ describe('RuleEngine.evaluateMove', () => {
         token,
         [token],
         STANDARD_RULES,
+        mockPlayerColors,
       );
       expect(result.extraTurn).toBe(false);
     });
@@ -177,6 +194,7 @@ describe('RuleEngine.evaluateMove', () => {
         tokens[3],
         tokens,
         STANDARD_RULES,
+        mockPlayerColors,
       );
       expect(result.isValid).toBe(true);
       expect(result.winner).toBe(PlayerId.RED);
@@ -196,6 +214,7 @@ describe('RuleEngine.evaluateMove', () => {
         tokens[3],
         tokens,
         STANDARD_RULES,
+        mockPlayerColors,
       );
       expect(result.winner).toBeNull();
     });
@@ -210,6 +229,7 @@ describe('RuleEngine.evaluateMove', () => {
         token,
         [token],
         STANDARD_RULES,
+        mockPlayerColors,
       );
       expect(result.nextPlayerId).toBe(PlayerId.GREEN);
     });
@@ -222,6 +242,7 @@ describe('RuleEngine.evaluateMove', () => {
         token,
         [token],
         STANDARD_RULES,
+        mockPlayerColors,
       );
       expect(result.nextPlayerId).toBe(PlayerId.RED);
     });
@@ -243,6 +264,7 @@ describe('RuleEngine.evaluateMove', () => {
         p1Token,
         [p1Token, p2TokenA, p2TokenB],
         rules,
+        mockPlayerColors,
       );
       expect(result.isValid).toBe(false);
       expect(result.reason).toContain('blockade');
@@ -259,6 +281,7 @@ describe('RuleEngine.evaluateMove', () => {
         p1Token,
         [p1Token, p2TokenA, p2TokenB],
         STANDARD_RULES, // allowBlockade: false
+        mockPlayerColors,
       );
       // Standard rules don't enforce blockade, so move is valid (capture instead)
       expect(result.isValid).toBe(true);
@@ -290,17 +313,17 @@ describe('RuleEngine.isBlockade', () => {
   it('returns true when 2+ opponent tokens are on the same global position', () => {
     const p2TokenA = makeToken('t2a', PlayerId.GREEN, 44); // global=5
     const p2TokenB = makeToken('t2b', PlayerId.GREEN, 44); // global=5
-    expect(RuleEngine.isBlockade(5, PlayerId.RED, [p2TokenA, p2TokenB])).toBe(true);
+    expect(RuleEngine.isBlockade(5, PlayerId.RED, [p2TokenA, p2TokenB], mockPlayerColors)).toBe(true);
   });
 
   it('returns false when only 1 opponent token is on the position', () => {
     const p2Token = makeToken('t2', PlayerId.GREEN, 44); // global=5
-    expect(RuleEngine.isBlockade(5, PlayerId.RED, [p2Token])).toBe(false);
+    expect(RuleEngine.isBlockade(5, PlayerId.RED, [p2Token], mockPlayerColors)).toBe(false);
   });
 
   it('returns false when tokens at that position belong to the moving player', () => {
     const p1TokenA = makeToken('t1a', PlayerId.RED, 5);
     const p1TokenB = makeToken('t1b', PlayerId.RED, 5);
-    expect(RuleEngine.isBlockade(5, PlayerId.RED, [p1TokenA, p1TokenB])).toBe(false);
+    expect(RuleEngine.isBlockade(5, PlayerId.RED, [p1TokenA, p1TokenB], mockPlayerColors)).toBe(false);
   });
 });

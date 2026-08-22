@@ -103,8 +103,8 @@ export function PlayerShell() {
                 <span className="sr-only">Menu</span>
               </button>
               <Link to="/dashboard" className="flex items-center gap-2">
-                <Logo compact className="lg:hidden" />
-                <Logo className="hidden lg:block" />
+                <Logo compact noLink className="lg:hidden" />
+                <Logo noLink className="hidden lg:block" />
               </Link>
             </div>
             

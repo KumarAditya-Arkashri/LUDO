@@ -14,6 +14,7 @@ import {
 import { WalletService } from './wallet.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { Throttle } from '@nestjs/throttler';
 
 @ApiTags('wallet')
 @ApiBearerAuth()
@@ -23,12 +24,14 @@ export class WalletController {
   constructor(private readonly walletService: WalletService) {}
 
   @Get('summary')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   @ApiOperation({ summary: 'Get current wallet balances' })
   async getSummary(@CurrentUser('id') userId: string) {
     return this.walletService.getBalance(userId);
   }
 
   @Get('history')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   @ApiOperation({ summary: 'Get paginated transaction history' })
   @ApiQuery({ name: 'skip', required: false, type: Number })
   @ApiQuery({ name: 'take', required: false, type: Number })

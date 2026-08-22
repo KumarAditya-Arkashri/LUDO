@@ -52,7 +52,9 @@ function parseCompressedState(compressedBase64: string): any {
   const buffer = Uint8Array.from(atob(compressedBase64), (c) => c.charCodeAt(0));
   const decompressed = unzlibSync(buffer);
   const jsonStr = new TextDecoder().decode(decompressed);
-  return JSON.parse(jsonStr);
+  const state = JSON.parse(jsonStr);
+  console.log("DECOMPRESSED STATE:", state);
+  return state;
 }
 
 function mapBackendStateToFrontend(
@@ -154,12 +156,18 @@ function mapBackendStateToFrontend(
   };
 }
 
+let isLobbyConnected = false;
+let globalMatchFoundListener: ((payload: { matchId: string; entryFee: number }) => void) | null = null;
+
 export const useGameStore = create<GameStore>((set, get) => ({
   ...initialState,
   myColor: "red",
   openBattles: [],
 
   connectLobby: () => {
+    if (isLobbyConnected) return;
+    isLobbyConnected = true;
+
     const socket = connectMatchmakingSocket();
     
     socket.off(SOCKET_EVENTS.battlesSync);
@@ -189,65 +197,102 @@ export const useGameStore = create<GameStore>((set, get) => ({
       }));
     });
 
-    socket.off(SOCKET_EVENTS.matchFound);
-    socket.on(SOCKET_EVENTS.matchFound, (payload: { matchId: string; entryFee: number }) => {
+    if (globalMatchFoundListener) {
+      socket.off(SOCKET_EVENTS.matchFound, globalMatchFoundListener);
+    }
+    globalMatchFoundListener = (payload: { matchId: string; entryFee: number }) => {
       get().joinMatch(payload.matchId);
-    });
+    };
+    socket.on(SOCKET_EVENTS.matchFound, globalMatchFoundListener);
   },
 
   createBattle: (entryFee) => new Promise((resolve, reject) => {
     const socket = getMatchmakingSocket();
-    const onError = (payload: any) => reject(new Error(payload.message));
-    socket.once(SOCKET_EVENTS.battleError, onError);
-    socket.emit(SOCKET_EVENTS.createBattle, { entryFee });
-    setTimeout(() => {
+    const onError = (payload: any) => {
+      socket.off(SOCKET_EVENTS.battleAdded, onAdded);
+      reject(new Error(payload.message));
+    };
+    const onAdded = (battle: any) => {
       socket.off(SOCKET_EVENTS.battleError, onError);
+      socket.off(SOCKET_EVENTS.battleAdded, onAdded);
       resolve(true);
-    }, 500);
+    };
+    socket.once(SOCKET_EVENTS.battleError, onError);
+    socket.on(SOCKET_EVENTS.battleAdded, onAdded);
+    socket.emit(SOCKET_EVENTS.createBattle, { entryFee });
   }),
 
   cancelBattle: (battleId) => new Promise((resolve, reject) => {
     const socket = getMatchmakingSocket();
-    const onError = (payload: any) => reject(new Error(payload.message));
+    const onError = (payload: any) => {
+      socket.off(SOCKET_EVENTS.battleRemoved, onRemoved);
+      reject(new Error(payload.message));
+    };
+    const onRemoved = (payload: any) => {
+      if (payload.battleId === battleId) {
+        socket.off(SOCKET_EVENTS.battleError, onError);
+        socket.off(SOCKET_EVENTS.battleRemoved, onRemoved);
+        resolve(true);
+      }
+    };
     socket.once(SOCKET_EVENTS.battleError, onError);
+    socket.on(SOCKET_EVENTS.battleRemoved, onRemoved);
     socket.emit(SOCKET_EVENTS.cancelBattle, { battleId });
-    setTimeout(() => {
-      socket.off(SOCKET_EVENTS.battleError, onError);
-      resolve(true);
-    }, 500);
   }),
 
   acceptBattle: (battleId) => new Promise((resolve, reject) => {
     const socket = getMatchmakingSocket();
-    const onError = (payload: any) => reject(new Error(payload.message));
+    const onError = (payload: any) => {
+      socket.off(SOCKET_EVENTS.battleUpdated, onUpdated);
+      reject(new Error(payload.message));
+    };
+    const onUpdated = (battle: any) => {
+      if (battle.id === battleId && battle.status === 'ACCEPTED') {
+        socket.off(SOCKET_EVENTS.battleError, onError);
+        socket.off(SOCKET_EVENTS.battleUpdated, onUpdated);
+        resolve(true);
+      }
+    };
     socket.once(SOCKET_EVENTS.battleError, onError);
+    socket.on(SOCKET_EVENTS.battleUpdated, onUpdated);
     socket.emit(SOCKET_EVENTS.acceptBattle, { battleId });
-    setTimeout(() => {
-      socket.off(SOCKET_EVENTS.battleError, onError);
-      resolve(true);
-    }, 500);
   }),
 
   rejectBattle: (battleId) => new Promise((resolve, reject) => {
     const socket = getMatchmakingSocket();
-    const onError = (payload: any) => reject(new Error(payload.message));
+    const onError = (payload: any) => {
+      socket.off(SOCKET_EVENTS.battleUpdated, onUpdated);
+      reject(new Error(payload.message));
+    };
+    const onUpdated = (battle: any) => {
+      if (battle.id === battleId && battle.status === 'OPEN') {
+        socket.off(SOCKET_EVENTS.battleError, onError);
+        socket.off(SOCKET_EVENTS.battleUpdated, onUpdated);
+        resolve(true);
+      }
+    };
     socket.once(SOCKET_EVENTS.battleError, onError);
+    socket.on(SOCKET_EVENTS.battleUpdated, onUpdated);
     socket.emit(SOCKET_EVENTS.rejectBattle, { battleId });
-    setTimeout(() => {
-      socket.off(SOCKET_EVENTS.battleError, onError);
-      resolve(true);
-    }, 500);
   }),
 
   startBattle: (battleId) => new Promise((resolve, reject) => {
     const socket = getMatchmakingSocket();
-    const onError = (payload: any) => reject(new Error(payload.message));
-    socket.once(SOCKET_EVENTS.battleError, onError);
-    socket.emit(SOCKET_EVENTS.startBattle, { battleId });
-    setTimeout(() => {
+    const onError = (payload: any) => {
+      if (globalMatchFoundListener) socket.off(SOCKET_EVENTS.matchFound, globalMatchFoundListener);
+      reject(new Error(payload.message));
+    };
+    // MATCH_FOUND indicates the backend successfully created the game
+    const onMatch = (payload: any) => {
       socket.off(SOCKET_EVENTS.battleError, onError);
+      socket.off(SOCKET_EVENTS.matchFound, onMatch);
+      // Let the main matchFound handler join the match
+      
       resolve(true);
-    }, 500);
+    };
+    socket.once(SOCKET_EVENTS.battleError, onError);
+    socket.on(SOCKET_EVENTS.matchFound, onMatch);
+    socket.emit(SOCKET_EVENTS.startBattle, { battleId });
   }),
 
   joinQueue: (entryFee) => new Promise((resolve, reject) => {
@@ -256,8 +301,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
     socket.once(SOCKET_EVENTS.queueJoined, () => resolve(true));
     socket.once(SOCKET_EVENTS.queueError, (payload: any) => reject(new Error(payload.message)));
     socket.emit(SOCKET_EVENTS.joinQueue, { entryFee });
-    socket.off(SOCKET_EVENTS.matchFound);
-    socket.on(SOCKET_EVENTS.matchFound, (payload: { matchId: string; entryFee: number }) => get().joinMatch(payload.matchId));
+    if (globalMatchFoundListener) {
+      socket.off(SOCKET_EVENTS.matchFound, globalMatchFoundListener);
+    }
+    globalMatchFoundListener = (payload: { matchId: string; entryFee: number }) => {
+      get().joinMatch(payload.matchId);
+    };
+    socket.on(SOCKET_EVENTS.matchFound, globalMatchFoundListener);
   }),
 
   leaveQueue: (entryFee) => {
@@ -267,6 +317,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   joinMatch: (matchId) => {
     if (!matchId) return;
+    localStorage.setItem('activeMatchId', matchId);
     const socket = connectGameSocket();
 
     const sendJoin = () => socket.emit(SOCKET_EVENTS.joinRoom, { matchId });
@@ -291,6 +342,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     socket.off(SOCKET_EVENTS.gameEnd);
     socket.on(SOCKET_EVENTS.gameEnd, (payload: { matchId: string; winnerId: string; compressedState: string }) => {
+      localStorage.removeItem('activeMatchId');
       if (!payload?.compressedState || payload.matchId !== matchId) return;
       try {
         const userId = useAuthStore.getState().user?.id || "";
@@ -321,13 +373,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   leaveMatch: () => {
+    localStorage.removeItem('activeMatchId');
     const socket = getGameSocket();
     if (socket.connected) socket.emit(SOCKET_EVENTS.leaveRoom);
     get().reset();
   },
 
   reset: () => {
+    localStorage.removeItem('activeMatchId');
     disconnectAllSockets();
     set({ ...initialState, myColor: "red", openBattles: [] });
   },
 }));
+if (typeof window !== 'undefined') { (window as any).__gameStore = useGameStore; }

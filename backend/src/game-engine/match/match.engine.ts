@@ -162,16 +162,23 @@ export class MatchEngine {
     };
 
     const destProgress = BoardEngine.calculateNextProgress(token.progress, moveRequest.diceValue);
-    const destGlobalPos = BoardEngine.getGlobalPosition(playerId as PlayerId, destProgress);
+    const actorColor = BoardEngine.resolvePlayerColor(state, playerId);
+    const destGlobalPos = BoardEngine.getGlobalPosition(actorColor, destProgress);
     const isSafe = BoardEngine.isSafePosition(destGlobalPos);
-    const destCellId = BoardEngine.getCellId(playerId as PlayerId, destProgress);
+    const destCellId = BoardEngine.getCellId(actorColor, destProgress);
+
+    const playerColors: Record<string, PlayerId> = {};
+    state.players.forEach(p => {
+      playerColors[p.playerId] = BoardEngine.resolvePlayerColor(state, p.playerId);
+    });
 
     const ruleResult = RuleEngine.evaluateMove(
       moveRequest,
       state.players.map(p => p.playerId),
       token,
       state.tokenStates,
-      STANDARD_RULES
+      STANDARD_RULES,
+      playerColors
     );
 
     if (!ruleResult.isValid) {

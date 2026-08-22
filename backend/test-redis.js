@@ -1,13 +1,10 @@
-const Redis = require('ioredis');
-const redis = new Redis();
-(async () => {
-  const keys = await redis.keys('match:*');
-  for (const key of keys) {
-    console.log("Match:", key);
-    const data = await redis.get(key);
-    const parsed = JSON.parse(data);
-    console.log(JSON.stringify(parsed.history, null, 2));
-    console.log(JSON.stringify(parsed.tokenStates, null, 2));
-  }
-  process.exit(0);
-})();
+import Redis from 'ioredis';
+const client = new Redis({ host: 'localhost', port: 6380 });
+const keys = await client.keys('gamestate:*');
+if (keys.length > 0) {
+  const val = await client.get(keys[0]);
+  console.log('Parsed:', JSON.stringify(JSON.parse(val).matchState.tokenStates, null, 2));
+} else {
+  console.log('No games found');
+}
+client.quit();

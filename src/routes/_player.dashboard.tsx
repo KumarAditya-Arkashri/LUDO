@@ -57,6 +57,7 @@ function DashboardPage() {
     try {
       setIsCreating(true);
       await createBattle(createFee);
+      useWalletStore.getState().fetchWallet();
       toast.success(`Battle created for ${inr(createFee)}!`);
       setCreateDialogOpen(false);
     } catch (err: any) {
@@ -69,6 +70,7 @@ function DashboardPage() {
   const handleAccept = async (battleId: string) => {
     try {
       await acceptBattle(battleId);
+      useWalletStore.getState().fetchWallet();
       toast.success("Battle requested!");
     } catch (err: any) {
       toast.error(err.message || "Failed to request battle");
@@ -88,6 +90,7 @@ function DashboardPage() {
   const handleCancel = async (battleId: string) => {
     try {
       await cancelBattle(battleId);
+      useWalletStore.getState().fetchWallet();
       toast.success("Battle cancelled");
     } catch (err: any) {
       toast.error(err.message || "Failed to cancel battle");
@@ -97,6 +100,7 @@ function DashboardPage() {
   const handleReject = async (battleId: string) => {
     try {
       await rejectBattle(battleId);
+      useWalletStore.getState().fetchWallet();
       toast.success("Request rejected");
     } catch (err: any) {
       toast.error(err.message || "Failed to reject request");
@@ -207,7 +211,7 @@ function DashboardPage() {
                 {b.status === "ACCEPTED" && (
                   <div className="flex gap-2">
                     <Button size="sm" variant="outline" onClick={() => handleReject(b.id)}>Reject</Button>
-                    <Button size="sm" onClick={() => handleStart(b.id)}>Start ({b.acceptorName})</Button>
+                    <Button size="sm" onClick={() => handleStart(b.id)}>Start ({b.accepterName})</Button>
                   </div>
                 )}
               </GlassPanel>
@@ -235,7 +239,7 @@ function DashboardPage() {
                     Play
                   </Button>
                 )}
-                {b.status === "ACCEPTED" && b.acceptorId === user?.id && (
+                {b.status === "ACCEPTED" && b.accepterId === user?.id && (
                   <Button size="sm" variant="secondary" disabled>
                     Requested...
                   </Button>

@@ -41,7 +41,12 @@ function PracticeBattlePage() {
   const [roomCode, setRoomCode] = useState("");
   const [codeInput, setCodeInput] = useState("");
   const [codeExpiresAt, setCodeExpiresAt] = useState<number | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [busyState, setBusyState] = useState(false);
+  const setBusy = (val: boolean) => {
+    console.log('SET_BUSY:', val, new Error().stack?.split('\\n')[2]);
+    setBusyState(val);
+  };
+  const busy = busyState;
   const [secondsLeft, setSecondsLeft] = useState(0);
 
   const socket = useMemo(() => connectPracticeSocket(), []);
@@ -49,8 +54,11 @@ function PracticeBattlePage() {
   useEffect(() => {
     const sync = (items: PracticeBattle[]) => setBattles(items);
     const created = (battle: PracticeBattle) => {
-      setSelected(battle);
-      toast.success("Practice battle created. Waiting for Player 2.");
+      if (battle.player1Id === user.id) {
+        setSelected(battle);
+        setBusy(false);
+        toast.success("Practice battle created. Waiting for Player 2.");
+      }
     };
     const joined = (battle: PracticeBattle) => {
       setSelected((current) => {
@@ -58,6 +66,7 @@ function PracticeBattlePage() {
         return current;
       });
       setBattles((current) => current.map((item) => (item.id === battle.id ? battle : item)));
+      setBusy(false);
       toast.success("Player 2 joined the table.");
     };
     const codeReady = (payload: { battleId: string; roomCode: string; expiresAt: number }) => {
